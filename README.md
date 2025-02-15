@@ -75,7 +75,7 @@ star:
 ### 容器镜像
 ```
 consumer镜像地址：registry.cn-beijing.aliyuncs.com/walkcloud/consumer:0.0.1-sc
-providera镜像地址：registry-vpc.cn-beijing.aliyuncs.com/walkcloud/providera:0.0.1-sc
-providerb镜像地址：registry-vpc.cn-beijing.aliyuncs.com/walkcloud/providerb:0.0.1-sc
+providera镜像地址：registry.cn-beijing.aliyuncs.com/walkcloud/providera:0.0.1-sc
+providerb镜像地址：registry.cn-beijing.aliyuncs.com/walkcloud/providerb:0.0.1-sc
 
 ```
