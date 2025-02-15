@@ -1,0 +1,14 @@
+server:
+  port: 8080
+spring:
+  application:
+    name: consumer
+  thymeleaf:
+    cache: false # 开发时关闭缓存
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}  # 通过环境变量注入
+        namespace: ${NACOS_NAMESPACE:public}
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:nacos}

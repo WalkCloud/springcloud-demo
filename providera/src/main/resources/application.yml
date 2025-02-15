@@ -1,0 +1,29 @@
+server:
+  port: 8081
+spring:
+  application:
+    name: provider-a
+  cloud:
+    nacos:
+      discovery:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}  # 通过环境变量注入
+        namespace: ${NACOS_NAMESPACE:public}
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:nacos}
+      config:
+        server-addr: ${NACOS_SERVER_ADDR:localhost:8848}  # 通过环境变量注入
+        namespace: ${NACOS_NAMESPACE:public}
+        username: ${NACOS_USERNAME:nacos}
+        password: ${NACOS_PASSWORD:nacos}
+        refresh-enabled: true  # 启用配置动态刷新
+        file-extension: yml
+  config:
+    import: "optional:nacos:provider-a.yml"  # 显式导入 Nacos 配置
+management:
+  endpoints:
+    web:
+      exposure:
+        include: refresh,health,info  # 暴露的端点，refresh 用于配置刷新
+  endpoint:
+    health:
+      show-details: always  # 显示健康检查的详细信息
