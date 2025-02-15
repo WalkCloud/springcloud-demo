@@ -1,4 +1,4 @@
-# Demo说明
+# Spring Cloud Demo说明
 
 ### 运行环境
 OpenJDK版本：eclipse-temurin 17.0.14_7-jdk  
@@ -13,7 +13,7 @@ Nacos版本：2.2.x~2.4.x
 
 ### 配置说明
 #### 环境变量说明：  
-
+```
 NACOS_SERVER_ADDR: 配置nacos访问地址  
 示例： NACOS_SERVER_ADDR=192.168.0.1:8848
 
@@ -25,13 +25,23 @@ NACOS_USERNAME: 配置nacos用户名
 
 NACOS_PASSWORD: 配置nacos密码
 示例：NACOS_PASSWOR=nacos
+```
 
 #### 配置文件说明：
+
+使用Nacos配置中心进行Provider-A和Provider-B内容进行更新，需要修改代码里面application.yml的字段如下：
 ```
-使用Nacos配置中心进行Provider-A和Provider-B内容进行更新，需要修改application.yml里面的如下字段：
   config:
     import: "optional:nacos:provider-a.yml"  # 显式导入 Nacos 配置
 ```
+Nacos配置中心中的data-id是provider-a.yml，并且配置内容如下
+```
+star:
+  color: blue  # 显示星星的颜色 red（红色）、blue（蓝色）、green（绿色）、yellow（黄色）、gold（金色）、silver（银色）、orange（橙色）、purple（紫色）、pink（粉色）、black（黑色）、white（白色）
+  count: 10    # 显示星星的数量
+```
+【注意】：application.yml里面的import的内容和Nacos配置中心里面的Data ID一致，才能通过Nacos下发配置到应用内部。
+
 
 ### Demo显示效果
 ```
