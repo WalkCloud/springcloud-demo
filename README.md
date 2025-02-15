@@ -54,7 +54,7 @@ NACOS_USERNAME: 配置nacos用户名
 NACOS_PASSWORD: 配置nacos密码
 示例：NACOS_PASSWOR=nacos
 ```
-
+此demo每一个微服务都是通过nacos注册发现的，所以都需要调整以上环境变量，程序才能运行。
 
 #### 配置文件说明：
 
