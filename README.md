@@ -70,3 +70,12 @@ star:
   count: 10    # 显示星星的数量
 ```
 【注意】：application.yml里面的import的内容和Nacos配置中心里面的Data ID一致，才能通过Nacos下发配置到应用内部。
+
+
+### 容器镜像
+```
+consumer镜像地址：registry.cn-beijing.aliyuncs.com/walkcloud/consumer:0.0.1-sc
+providera镜像地址：registry-vpc.cn-beijing.aliyuncs.com/walkcloud/providera:0.0.1-sc
+providerb镜像地址：registry-vpc.cn-beijing.aliyuncs.com/walkcloud/providerb:0.0.1-sc
+
+```
