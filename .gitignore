@@ -1,0 +1,19 @@
+# 构建产物
+target/
+local-repo/
+
+# 镜像包与大文件
+images/
+*.tar.gz
+
+# 部署/构建辅助脚本（含凭据，不纳入仓库）
+deploy_remote.py
+collect_modules.py
+
+# 文档
+CLAUDE.md
+
+# IDE
+.idea/
+*.iml
+.vscode/

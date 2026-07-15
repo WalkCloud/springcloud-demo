@@ -1,62 +1,725 @@
 <!DOCTYPE html>
-<html xmlns:th="http://www.thymeleaf.org">
+<html lang="zh-CN" xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
-    <title>Welcome to visit the microservice demo application!</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>微服务总览 · Service Overview</title>
     <style>
-        .service-card {
-            margin: 20px;
-            padding: 20px;
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        :root {
+            --bg: #f4f6fa;
+            --card: #ffffff;
+            --border: #e8ecf2;
+            --text: #1a2332;
+            --text-sub: #6b7a90;
+            --primary: #2563eb;
+            --primary-soft: #eff4ff;
+            --green: #10b981;
+            --green-soft: #ecfdf5;
+            --red: #ef4444;
+            --red-soft: #fef2f2;
+            --amber: #f59e0b;
+            --purple: #8b5cf6;
+            --purple-soft: #f5f3ff;
+            --shadow: 0 1px 3px rgba(16,24,40,.06), 0 1px 2px rgba(16,24,40,.04);
+            --shadow-md: 0 4px 12px rgba(16,24,40,.08);
+            --radius: 14px;
         }
-        .star {
-            font-size: 24px;
-            margin-right: 3px;
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+                         "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+            -webkit-font-smoothing: antialiased;
         }
-        h1 { color: #2c3e50; }
-        .env-info {
-            margin: 15px 0;
-            padding: 10px;
-            background-color: #f8f9fa;
-            border-left: 4px solid #2c3e50;
+        .wrap { max-width: 1240px; margin: 0 auto; padding: 0 24px 48px; }
+
+        /* ===== Header ===== */
+        header {
+            background: var(--card);
+            border-bottom: 1px solid var(--border);
+            position: sticky; top: 0; z-index: 100;
+            box-shadow: var(--shadow);
+        }
+        .header-inner {
+            max-width: 1240px; margin: 0 auto; padding: 16px 24px;
+            display: flex; align-items: center; justify-content: space-between;
+            flex-wrap: wrap; gap: 12px;
+        }
+        .brand { display: flex; align-items: center; gap: 14px; }
+        .logo {
+            width: 42px; height: 42px; border-radius: 11px;
+            background: linear-gradient(135deg, #2563eb, #8b5cf6);
+            display: grid; place-items: center;
+            color: #fff; font-weight: 800; font-size: 20px;
+            box-shadow: 0 4px 10px rgba(37,99,235,.35);
+        }
+        .brand h1 { font-size: 19px; font-weight: 700; letter-spacing: -.2px; }
+        .brand p { font-size: 12.5px; color: var(--text-sub); }
+        .header-meta { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+        .live {
+            display: flex; align-items: center; gap: 7px;
+            font-size: 12.5px; color: var(--text-sub); font-weight: 600;
+        }
+        .pulse {
+            width: 9px; height: 9px; border-radius: 50%; background: var(--green);
+            position: relative;
+        }
+        .pulse::after {
+            content: ''; position: absolute; inset: -4px; border-radius: 50%;
+            background: var(--green); opacity: .35;
+            animation: pulse 1.6s ease-out infinite;
+        }
+        .pulse.loading { background: var(--amber); }
+        .pulse.loading::after { background: var(--amber); }
+        @keyframes pulse {
+            0% { transform: scale(.6); opacity: .5; }
+            100% { transform: scale(2.2); opacity: 0; }
+        }
+
+        /* ===== Alert bar ===== */
+        .alert-bar {
+            background: var(--red-soft); color: var(--red);
+            border-bottom: 1px solid #fecaca;
+            padding: 9px 24px; text-align: center;
+            font-size: 13px; font-weight: 600; display: none;
+        }
+
+        .section-title {
+            font-size: 13px; font-weight: 700; color: var(--text-sub);
+            text-transform: uppercase; letter-spacing: .8px;
+            margin: 32px 0 14px;
+        }
+
+        /* ===== Topology ===== */
+        .topo-card {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: var(--radius); box-shadow: var(--shadow);
+            padding: 26px 20px; overflow-x: auto;
+            display: flex; gap: 20px; align-items: flex-start;
+        }
+        .topo-wrap { flex: 1; min-width: 0; }
+        /* 注册表（右侧） */
+        .reg-panel {
+            flex: 0 0 280px; border: 1px solid var(--border); border-radius: 12px;
+            background: #fbfcfe; overflow: hidden;
+            max-height: 340px; display: flex; flex-direction: column;
+        }
+        .reg-panel .reg-scroll { overflow-y: auto; }
+        .reg-panel .reg-head {
+            padding: 10px 14px; background: linear-gradient(180deg,#ecfdf5,#fff);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; gap: 8px;
+        }
+        .reg-panel .reg-head .rh-icon {
+            width: 26px; height: 26px; border-radius: 7px; background: var(--green-soft);
+            display: grid; place-items: center; font-size: 14px;
+        }
+        .reg-panel .reg-head h4 { font-size: 13px; font-weight: 700; color: #10b981; }
+        .reg-panel .reg-head .rh-sub { font-size: 10.5px; color: var(--text-sub); }
+        .reg-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+        .reg-table th {
+            text-align: left; padding: 7px 14px; font-size: 11px; font-weight: 700;
+            color: var(--text-sub); background: #f4f6fa; border-bottom: 1px solid var(--border);
+        }
+        .reg-table td {
+            padding: 8px 14px; border-bottom: 1px solid #f1f4f9; vertical-align: middle;
+        }
+        .reg-table tr:last-child td { border-bottom: none; }
+        .reg-table .reg-count { text-align: center; font-weight: 700; color: var(--primary); }
+        .reg-table .reg-ips code { display: inline-block; margin-bottom: 3px; }
+        .reg-table .reg-ips code:last-child { margin-bottom: 0; }
+        .reg-table .svc-name { font-weight: 700; }
+        .reg-table .svc-name .sn-dot {
+            display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+            margin-right: 6px; vertical-align: middle;
+        }
+        .reg-table code {
+            font-family: "SF Mono", Consolas, monospace; font-size: 11.5px;
+            background: #eef2f7; padding: 1px 6px; border-radius: 4px; color: #475569;
+        }
+        .reg-empty { padding: 24px; text-align: center; color: var(--text-sub); font-size: 12px; }
+        .topo-svg { display: block; width: 100%; height: auto; }
+        .topo-node rect { transition: filter .3s; }
+        .topo-node:hover rect { filter: drop-shadow(0 0 8px rgba(37,99,235,.35)); }
+        .flow { stroke-dasharray: 6 5; animation: flow 1.1s linear infinite; }
+        @keyframes flow { to { stroke-dashoffset: -22; } }
+        .flow-slow { stroke-dasharray: 5 6; animation: flow 2.6s linear infinite; }
+        .topo-note { font-size: 10.5px; fill: #94a3b8; font-weight: 600; }
+
+        /* ===== KPI ===== */
+        .kpi-grid {
+            display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px;
+        }
+        .kpi {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: var(--radius); padding: 18px 20px; box-shadow: var(--shadow);
+            position: relative; overflow: hidden;
+        }
+        .kpi::before {
+            content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px;
+            background: var(--primary);
+        }
+        .kpi.green::before { background: var(--green); }
+        .kpi.red::before { background: var(--red); }
+        .kpi.purple::before { background: var(--purple); }
+        .kpi .label { font-size: 12.5px; color: var(--text-sub); font-weight: 600; }
+        .kpi .value { font-size: 34px; font-weight: 800; letter-spacing: -1px; margin-top: 4px; }
+        .kpi .sub { font-size: 11.5px; color: var(--text-sub); margin-top: 2px; }
+
+        /* ===== Tech stack ===== */
+        .tech-grid {
+            display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px;
+        }
+        .platform-badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            font-size: 12px; font-weight: 700; color: var(--text-sub);
+            padding: 5px 12px; border-radius: 20px;
+            background: linear-gradient(135deg, #eff4ff, #f5f3ff);
+            border: 1px solid #dbe7ff;
+        }
+        .platform-badge .p-logo {
+            width: 20px; height: 20px; border-radius: 6px;
+            background: linear-gradient(135deg, #2563eb, #8b5cf6);
+            display: grid; place-items: center; color: #fff;
+            font-weight: 900; font-size: 11px;
+        }
+        .platform-badge b { color: var(--primary); }
+        .section-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+        .tech-card {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: 12px; padding: 16px 10px; box-shadow: var(--shadow);
+            text-align: center; transition: transform .15s, box-shadow .15s;
+            display: flex; flex-direction: column; align-items: center; gap: 8px;
+        }
+        .tech-card:hover { transform: translateY(-3px); box-shadow: var(--shadow-md); }
+        .tech-emoji {
+            width: 44px; height: 44px; border-radius: 11px;
+            display: grid; place-items: center; font-size: 23px;
+            background: var(--primary-soft);
+        }
+        .tech-card .t-name { font-size: 13px; font-weight: 700; }
+        .tech-card .t-role { font-size: 11px; color: var(--text-sub); }
+
+        /* ===== Service cards ===== */
+        .svc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+        .svc-card {
+            background: var(--card); border: 1px solid var(--border);
+            border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden;
+        }
+        .svc-head {
+            padding: 16px 20px; border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+            background: linear-gradient(180deg, #fbfcfe, #fff);
+        }
+        .svc-head .name { display: flex; align-items: center; gap: 10px; }
+        .svc-head .icon {
+            width: 34px; height: 34px; border-radius: 9px;
+            display: grid; place-items: center; font-size: 17px;
+            background: var(--primary-soft); color: var(--primary);
+        }
+        .svc-head .icon.b { background: var(--purple-soft); color: var(--purple); }
+        .svc-head h3 { font-size: 15.5px; font-weight: 700; }
+        .svc-head .sid { font-size: 11.5px; color: var(--text-sub); }
+        .svc-head .biz { font-size: 11px; color: var(--primary); font-weight: 600; margin-top: 1px; }
+        .svc-head.b .biz { color: var(--purple); }
+
+        /* 业务摘要区 */
+        .biz-summary {
+            padding: 14px 20px; border-bottom: 1px solid var(--border);
+            background: linear-gradient(180deg, #fbfcfe, #fff);
+        }
+        .biz-slogan { font-size: 12px; color: var(--text-sub); margin-bottom: 10px; }
+        .biz-metrics { display: flex; gap: 18px; flex-wrap: wrap; }
+        .biz-metric { display: flex; flex-direction: column; }
+        .biz-metric .m-val { font-size: 20px; font-weight: 800; color: var(--text); line-height: 1.1; }
+        .biz-metric .m-label { font-size: 11px; color: var(--text-sub); margin-top: 2px; }
+        .biz-metric .m-val.acc { color: var(--primary); }
+        .biz-metric .m-val.pur { color: var(--purple); }
+        .biz-metric .m-val.warn { color: var(--amber); }
+        .biz-products { margin-top: 10px; display: flex; flex-direction: column; gap: 5px; }
+        .biz-product {
+            display: flex; align-items: center; gap: 10px; font-size: 12.5px;
+            padding: 6px 10px; background: #f8fafc; border-radius: 8px;
+        }
+        .biz-product .pname { flex: 1; font-weight: 600; }
+        .biz-product .pprice { color: var(--primary); font-weight: 700; }
+        .biz-product .pstatus {
+            font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 5px;
+            background: var(--green-soft); color: var(--green);
+        }
+        .biz-product .pstatus.hot { background: #fff7ed; color: #ea580c; }
+        .badge {
+            font-size: 12px; font-weight: 700; padding: 5px 12px; border-radius: 20px;
+            display: inline-flex; align-items: center; gap: 6px;
+        }
+        .badge.up { background: var(--green-soft); color: var(--green); }
+        .badge.down { background: var(--red-soft); color: var(--red); }
+        .badge .dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+
+        .inst-list { padding: 8px; }
+        .inst {
+            display: flex; align-items: center; gap: 14px;
+            padding: 12px 14px; border-radius: 10px; transition: background .15s;
+            border: 1px solid transparent;
+        }
+        .inst:hover { background: #f8fafc; border-color: var(--border); }
+        .inst + .inst { border-top: 1px solid #f1f4f9; border-radius: 0; }
+        .inst .status-dot {
+            width: 11px; height: 11px; border-radius: 50%; flex-shrink: 0;
+            box-shadow: 0 0 0 3px var(--green-soft);
+        }
+        .inst .status-dot.up { background: var(--green); }
+        .inst .status-dot.down { background: var(--red); box-shadow: 0 0 0 3px var(--red-soft); }
+        .inst .main { flex: 1; min-width: 0; }
+        .inst .host { font-size: 13.5px; font-weight: 700; }
+        .inst .meta {
+            font-size: 11.5px; color: var(--text-sub); margin-top: 2px;
+            display: flex; gap: 12px; flex-wrap: wrap;
+        }
+        .inst .meta code {
+            font-family: "SF Mono", Consolas, monospace; font-size: 11.5px;
+            background: #f1f4f9; padding: 1px 6px; border-radius: 4px; color: #475569;
+        }
+        .inst .stars { font-size: 15px; letter-spacing: 1px; white-space: nowrap; }
+        .inst-status-tag {
+            font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 6px;
+        }
+        .inst-status-tag.up { background: var(--green-soft); color: var(--green); }
+        .inst-status-tag.down { background: var(--red-soft); color: var(--red); }
+
+        .empty {
+            padding: 30px; text-align: center; color: var(--text-sub); font-size: 13px;
+        }
+
+        /* ===== Footer ===== */
+        footer {
+            margin-top: 32px; padding: 20px; text-align: center;
+            font-size: 12.5px; color: var(--text-sub);
+            background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
+        }
+        footer code {
+            font-family: "SF Mono", Consolas, monospace; background: #f1f4f9;
+            padding: 2px 7px; border-radius: 5px; color: #475569; font-size: 12px;
+        }
+
+        .skeleton { color: #cbd5e1 !important; }
+        @media (max-width: 900px) {
+            .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+            .svc-grid { grid-template-columns: 1fr; }
         }
     </style>
 </head>
 <body>
-<h1>Welcome to visit the microservice demo application!</h1>
 
-<div class="env-info">
-    <p>Operating environment: OpenJDK 17</p>
-    <p>Microservice architecture: Spring Cloud</p>
-    <p>Registration center: Nacos</p>
+<header>
+    <div class="header-inner">
+        <div class="brand">
+            <div class="logo">μ</div>
+            <div>
+                <h1>微服务总览 · Service Overview</h1>
+                <p>Spring Cloud 微服务架构实时拓扑与实例监控</p>
+            </div>
+        </div>
+        <div class="header-meta">
+            <span class="platform-badge"><span class="p-logo">A</span>Powered by <b>Alauda 灵雀云</b> 容器云平台</span>
+            <div class="live" id="live">
+                <span class="pulse" id="pulse"></span>
+                <span id="liveText">实时刷新中 · 5s</span>
+            </div>
+        </div>
+    </div>
+</header>
+
+<div class="alert-bar" id="alertBar">⚠ 数据获取异常，显示为最近一次缓存数据</div>
+
+<div class="wrap">
+
+    <!-- ===== 架构拓扑 ===== -->
+    <div class="section-title">架构拓扑 · Topology</div>
+    <div class="topo-card">
+     <div class="topo-wrap">
+        <svg class="topo-svg" viewBox="0 0 1000 340" xmlns="http://www.w3.org/2000/svg">
+            <defs>
+                <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L8,3 z" fill="#94a3b8"/>
+                </marker>
+                <marker id="arrowPurple" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L8,3 z" fill="#8b5cf6"/>
+                </marker>
+                <marker id="arrowGreen" markerWidth="9" markerHeight="9" refX="7" refY="3" orient="auto" markerUnits="strokeWidth">
+                    <path d="M0,0 L0,6 L7,3 z" fill="#10b981"/>
+                </marker>
+            </defs>
+
+            <!--
+              坐标体系（viewBox 1000x340，所有节点统一 160x60，均位于边界内）：
+              Nacos:     (420, 20)  -> x:420-580  中心(500,50)  底中(500,80)   ← 顶部，居中于 Consumer(右440)与Provider(左680)之间
+              Browser:   (30,200)   -> 中心(110,230) 右中(190,230)
+              Consumer:  (280,200)  -> 中心(360,230) 右中(440,230) 顶中(360,200)
+              ProviderA: (680,140)  -> 中心(760,170) 左中(680,170) 顶中(760,140)
+              ProviderB: (680,250)  -> 中心(760,280) 左中(680,280) 顶中(760,250)
+              Consumer→Provider 间距 240px（已调大）；A/B 关于 y=225 上下基本对称
+            -->
+
+            <!-- ===== Nacos 注册中心：顶部，居中于 Consumer 与 Provider 之间 ===== -->
+            <g class="topo-node" transform="translate(420,20)">
+                <rect width="160" height="60" rx="12" fill="#ecfdf5" stroke="#10b981" stroke-width="1.5"/>
+                <text x="80" y="27" text-anchor="middle" font-size="20">🗂</text>
+                <text x="80" y="48" text-anchor="middle" font-size="13" font-weight="700" fill="#10b981">Nacos 注册中心</text>
+            </g>
+
+            <!-- 注册/服务发现（绿色虚线）：各服务上行到 Nacos 底部 -->
+            <!-- Consumer 顶中(360,200) -> Nacos 底左(460,80) -->
+            <line x1="360" y1="200" x2="460" y2="80" stroke="#10b981" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrowGreen)"/>
+            <!-- Provider A 顶中(760,140) -> Nacos 底右(540,80) -->
+            <line x1="760" y1="140" x2="540" y2="80" stroke="#10b981" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrowGreen)"/>
+            <!-- Provider B 顶中(760,250) -> Nacos 底右(540,80) -->
+            <line x1="760" y1="250" x2="540" y2="80" stroke="#10b981" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arrowGreen)"/>
+            <text x="500" y="112" text-anchor="middle" class="topo-note">注册 / 服务发现</text>
+
+            <!-- ===== 主干流量链（水平线 y=230） ===== -->
+            <!-- Browser -->
+            <g class="topo-node" transform="translate(30,200)">
+                <rect width="160" height="60" rx="12" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5"/>
+                <text x="80" y="27" text-anchor="middle" font-size="22">🌐</text>
+                <text x="80" y="48" text-anchor="middle" font-size="13" font-weight="700" fill="#475569">浏览器</text>
+            </g>
+            <line x1="190" y1="230" x2="278" y2="230" class="flow" stroke="#94a3b8" stroke-width="2.4" marker-end="url(#arrow)"/>
+            <text x="234" y="222" text-anchor="middle" class="topo-note">HTTP</text>
+
+            <!-- Consumer -->
+            <g class="topo-node" transform="translate(280,200)">
+                <rect width="160" height="60" rx="12" fill="#eff4ff" stroke="#2563eb" stroke-width="1.5"/>
+                <text x="80" y="27" text-anchor="middle" font-size="22">🛰</text>
+                <text x="80" y="48" text-anchor="middle" font-size="13" font-weight="700" fill="#2563eb">Consumer</text>
+            </g>
+
+            <!-- Consumer 右中(440,230) -> Provider A 左中(680,170) : 直接调用（直线） -->
+            <line x1="440" y1="230" x2="678" y2="170" class="flow" stroke="#8b5cf6" stroke-width="2.6" marker-end="url(#arrowPurple)"/>
+            <text x="555" y="186" text-anchor="middle" class="topo-note" fill="#8b5cf6">直接调用</text>
+            <!-- Consumer 右中(440,230) -> Provider B 左中(680,280) : 直接调用（直线，与上方对称） -->
+            <line x1="440" y1="230" x2="678" y2="280" class="flow" stroke="#8b5cf6" stroke-width="2.6" marker-end="url(#arrowPurple)"/>
+            <text x="555" y="272" text-anchor="middle" class="topo-note" fill="#8b5cf6">直接调用</text>
+
+            <!-- Provider A -->
+            <g class="topo-node" transform="translate(680,140)">
+                <rect id="topoNodeA" width="160" height="60" rx="12" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+                <text x="80" y="27" text-anchor="middle" font-size="20">🛒</text>
+                <text x="80" y="48" text-anchor="middle" font-size="13" font-weight="700" fill="#8b5cf6">Provider A · 商品服务</text>
+            </g>
+            <text id="topoCountA" x="760" y="134" text-anchor="middle" font-size="11" font-weight="700" fill="#8b5cf6"></text>
+
+            <!-- Provider B -->
+            <g class="topo-node" transform="translate(680,250)">
+                <rect id="topoNodeB" width="160" height="60" rx="12" fill="#f5f3ff" stroke="#8b5cf6" stroke-width="1.5"/>
+                <text x="80" y="27" text-anchor="middle" font-size="20">📦</text>
+                <text x="80" y="48" text-anchor="middle" font-size="13" font-weight="700" fill="#8b5cf6">Provider B · 库存服务</text>
+            </g>
+            <text id="topoCountB" x="760" y="324" text-anchor="middle" font-size="11" font-weight="700" fill="#8b5cf6"></text>
+
+            <!-- 图例 -->
+            <g transform="translate(860,150)">
+                <line x1="0" y1="0" x2="22" y2="0" stroke="#8b5cf6" stroke-width="2.6" class="flow"/>
+                <text x="28" y="4" class="topo-note">流量调用</text>
+                <line x1="0" y1="18" x2="22" y2="18" stroke="#10b981" stroke-width="1.6" stroke-dasharray="5 4"/>
+                <text x="28" y="22" class="topo-note">注册 / 发现</text>
+            </g>
+        </svg>
+     </div>
+     <!-- Nacos 注册表：动态展示已注册服务名 + IP -->
+     <div class="reg-panel">
+        <div class="reg-head">
+            <span class="rh-icon">🗂</span>
+            <div><h4>注册中心服务列表</h4><div class="rh-sub">实时同步自 Nacos</div></div>
+        </div>
+        <table class="reg-table">
+            <thead><tr><th>服务名</th><th>实例数</th><th>实例 IP:Port</th></tr></thead>
+        </table>
+        <div class="reg-scroll"><div id="regBody"><div class="reg-empty">加载中…</div></div></div>
+     </div>
+    </div>
+
+    <!-- ===== KPI ===== -->
+    <div class="section-title">集群概览 · Overview</div>
+    <div class="kpi-grid">
+        <div class="kpi"><div class="label">服务总数</div><div class="value" id="kpiSvc">-</div><div class="sub">Services</div></div>
+        <div class="kpi purple"><div class="label">实例总数</div><div class="value" id="kpiTotal">-</div><div class="sub">Total Pods</div></div>
+        <div class="kpi green"><div class="label">在线实例</div><div class="value" id="kpiOnline">-</div><div class="sub">Online</div></div>
+        <div class="kpi red"><div class="label">离线实例</div><div class="value" id="kpiOffline">-</div><div class="sub">Offline</div></div>
+    </div>
+
+    <!-- ===== Tech Stack ===== -->
+    <div class="section-title">技术栈 · Technology Stack</div>
+    <div class="tech-grid">
+        <div class="tech-card"><div class="tech-emoji">☕</div><div class="t-name">OpenJDK 17</div><div class="t-role">运行时</div></div>
+        <div class="tech-card"><div class="tech-emoji" style="background:#ecfdf5">🍃</div><div class="t-name">Spring Boot 3.0</div><div class="t-role">应用框架</div></div>
+        <div class="tech-card"><div class="tech-emoji" style="background:#f5f3ff">☁️</div><div class="t-name">Spring Cloud</div><div class="t-role">微服务框架</div></div>
+        <div class="tech-card"><div class="tech-emoji" style="background:#eff4ff">🌐</div><div class="t-name">Cloud Alibaba</div><div class="t-role">微服务组件</div></div>
+        <div class="tech-card"><div class="tech-emoji" style="background:#ecfdf5">🗂</div><div class="t-name">Nacos</div><div class="t-role">注册/配置中心</div></div>
+        <div class="tech-card"><div class="tech-emoji" style="background:#326ce5; color:#fff">☸</div><div class="t-name">Kubernetes</div><div class="t-role">容器编排</div></div>
+    </div>
+
+    <!-- ===== Services ===== -->
+    <div class="section-title">服务详情 · Service Instances</div>
+    <div class="svc-grid">
+        <div class="svc-card">
+            <div class="svc-head">
+                <div class="name"><div class="icon">🛰</div><div><h3>Consumer 服务</h3><div class="sid">consumer</div><div class="biz">流量入口</div></div></div>
+                <span class="badge up" id="badgeC"><span class="dot"></span><span id="badgeTextC">-/-</span></span>
+            </div>
+            <div class="biz-summary" id="bizSummaryC"><div class="biz-slogan">加载中…</div></div>
+            <div class="inst-list" id="listC"><div class="empty">加载中…</div></div>
+        </div>
+        <div class="svc-card">
+            <div class="svc-head">
+                <div class="name"><div class="icon">🛒</div><div><h3>Service Provider A</h3><div class="sid">provider-a</div><div class="biz" id="bizA">商品服务</div></div></div>
+                <span class="badge up" id="badgeA"><span class="dot"></span><span id="badgeTextA">-/-</span></span>
+            </div>
+            <div class="biz-summary" id="bizSummaryA"><div class="biz-slogan">加载中…</div></div>
+            <div class="inst-list" id="listA"><div class="empty">加载中…</div></div>
+        </div>
+        <div class="svc-card">
+            <div class="svc-head b">
+                <div class="name"><div class="icon b">📦</div><div><h3>Service Provider B</h3><div class="sid">provider-b</div><div class="biz" id="bizB">库存服务</div></div></div>
+                <span class="badge up" id="badgeB"><span class="dot"></span><span id="badgeTextB">-/-</span></span>
+            </div>
+            <div class="biz-summary" id="bizSummaryB"><div class="biz-slogan">加载中…</div></div>
+            <div class="inst-list" id="listB"><div class="empty">加载中…</div></div>
+        </div>
+    </div>
+
+    <footer id="footer">Consumer 节点信息加载中…</footer>
 </div>
 
-<p>The currently accessed microservice is: consumer</p>
+<script>
+(function () {
+    "use strict";
+    var REFRESH_MS = 5000;
+    var el = function (id) { return document.getElementById(id); };
 
-<div class="service-card" th:object="${providerA}">
-    <h3>Service Provider A</h3>
-    <p>Service Name: <span th:text="*{serviceName}"></span></p>
-    <p>Host Name: <span th:text="*{hostName}"></span></p>
-    <p>IP Address: <span th:text="*{ipAddress}"></span></p>
-    <p>Star Rating:
-        <span th:each="color : *{stars}"
-              class="star"
-              th:style="'color: ' + ${color}">★</span>
-    </p>
-</div>
+    function starsHtml(colors) {
+        if (!colors || !colors.length) return '<span style="color:#cbd5e1">—</span>';
+        return colors.map(function (c) {
+            return '<span style="color:' + esc(c) + '">★</span>';
+        }).join('');
+    }
+    function esc(s) {
+        return String(s == null ? '' : s).replace(/[<>"']/g, function (m) {
+            return { '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+        });
+    }
+    function badgeFor(total, online) {
+        if (total === 0) return { cls: 'down', text: '0 实例' };
+        if (online === total) return { cls: 'up', text: online + '/' + total + ' 在线' };
+        return { cls: 'down', text: online + '/' + total + ' 部分在线' };
+    }
 
-<div class="service-card" th:object="${providerB}">
-    <h3>Service Provider B</h3>
-    <p>Service Name: <span th:text="*{serviceName}"></span></p>
-    <p>Host Name: <span th:text="*{hostName}"></span></p>
-    <p>IP Address: <span th:text="*{ipAddress}"></span></p>
-    <p>Star Rating:
-        <span th:each="color : *{stars}"
-              class="star"
-              th:style="'color: ' + ${color}">★</span>
-    </p>
-</div>
+    function renderService(prefix, svc) {
+        var instances = svc.instances || [];
+        var b = badgeFor(svc.total, svc.online);
+        var badge = el('badge' + prefix);
+        var bt = el('badgeText' + prefix);
+        badge.className = 'badge ' + b.cls;
+        bt.textContent = b.text;
+        el('topoCount' + prefix).textContent = svc.total + ' 个实例 (在线 ' + svc.online + ')';
+
+        // 业务摘要：取第一个在线实例的业务数据代表整个服务（同服务配置一致）
+        var rep = null;
+        for (var i = 0; i < instances.length; i++) {
+            if (instances[i].status === 'UP' && instances[i].info) { rep = instances[i].info; break; }
+        }
+        renderBizSummary(prefix, rep);
+
+        var list = el('list' + prefix);
+        if (!instances.length) {
+            list.innerHTML = '<div class="empty">注册中心暂无该服务实例</div>';
+            return;
+        }
+        list.innerHTML = instances.map(function (inst, i) {
+            var up = inst.status === 'UP';
+            var info = inst.info || {};
+            var host = info.hostName || inst.instanceId || 'unknown';
+            var ip = info.ipAddress || '—';
+            return '<div class="inst">'
+                + '<span class="status-dot ' + (up ? 'up' : 'down') + '"></span>'
+                + '<div class="main">'
+                +   '<div class="host">Pod #' + (i + 1) + ' · ' + esc(host) + '</div>'
+                +   '<div class="meta">'
+                +     '<span>IP <code>' + esc(ip) + ':' + esc(inst.port) + '</code></span>'
+                +     '<span>实例ID <code>' + esc(inst.instanceId) + '</code></span>'
+                +   '</div>'
+                + '</div>'
+                + '<span class="stars">' + starsHtml(info.stars) + '</span>'
+                + '<span class="inst-status-tag ' + (up ? 'up' : 'down') + '">' + (up ? 'UP' : 'DOWN') + '</span>'
+                + '</div>';
+        }).join('');
+    }
+
+    // 渲染 consumer 卡片（流量入口，展示副本数 + 实例列表，无业务数据）
+    function renderConsumer(svc) {
+        var instances = svc.instances || [];
+        var b = badgeFor(svc.total, svc.online);
+        var badge = el('badgeC');
+        var bt = el('badgeTextC');
+        badge.className = 'badge ' + b.cls;
+        bt.textContent = b.text;
+
+        // 业务摘要区：展示 consumer 作为流量入口的关键信息
+        var box = el('bizSummaryC');
+        box.innerHTML =
+            '<div class="biz-slogan">对外流量入口 · 接收用户请求并调用后端 Provider 服务</div>'
+            + '<div class="biz-metrics">'
+            +   '<div class="biz-metric"><span class="m-val acc">' + svc.total + '</span><span class="m-label">运行副本数</span></div>'
+            +   '<div class="biz-metric"><span class="m-val">' + esc(svc.port || 8080) + '</span><span class="m-label">服务端口</span></div>'
+            + '</div>';
+
+        // 实例列表（与 provider 卡片风格一致：Pod编号+主机名 / IP:端口 / 实例ID）
+        var list = el('listC');
+        if (!instances.length) {
+            list.innerHTML = '<div class="empty">注册中心暂无该服务实例</div>';
+            return;
+        }
+        list.innerHTML = instances.map(function (inst, i) {
+            var up = inst.status === 'UP';
+            var ip = inst.ipAddress || '—';
+            var host = inst.hostName || ip;  // consumer 无独立 hostName，回退用 IP
+            return '<div class="inst">'
+                + '<span class="status-dot ' + (up ? 'up' : 'down') + '"></span>'
+                + '<div class="main">'
+                +   '<div class="host">Pod #' + (i + 1) + ' · ' + esc(host) + '</div>'
+                +   '<div class="meta">'
+                +     '<span>IP <code>' + esc(ip) + ':' + esc(inst.port) + '</code></span>'
+                +     '<span>实例ID <code>' + esc(inst.instanceId) + '</code></span>'
+                +   '</div>'
+                + '</div>'
+                + '<span class="inst-status-tag ' + (up ? 'up' : 'down') + '">' + (up ? 'UP' : 'DOWN') + '</span>'
+                + '</div>';
+        }).join('');
+    }
+
+    // 渲染 Nacos 注册表：聚合所有服务的实例，展示 服务名 + IP:Port
+    function renderRegistry(data) {
+        var box = el('regBody');
+        // 按服务聚合，每个服务一行：服务名 | 实例数 | 实例IP(多pod合并)
+        var groups = [
+            { name: 'consumer', color: '#2563eb', svc: data.consumer || {} },
+            { name: 'provider-a', color: '#8b5cf6', svc: data.providerA || {} },
+            { name: 'provider-b', color: '#8b5cf6', svc: data.providerB || {} }
+        ];
+        var rows = '';
+        groups.forEach(function (g) {
+            var insts = g.svc.instances || [];
+            if (!insts.length) return;  // 无实例不显示该服务
+            // 同服务的所有实例 IP:Port 合并到一格，多 pod 换行展示
+            var ips = insts.map(function (inst) {
+                var ip = g.name === 'consumer'
+                    ? (inst.ipAddress || '—')
+                    : ((inst.info || {}).ipAddress || '—');
+                return '<code>' + esc(ip) + ':' + esc(inst.port) + '</code>';
+            }).join('<br>');
+            rows += '<tr>'
+                + '<td class="svc-name"><span class="sn-dot" style="background:' + g.color + '"></span>' + esc(g.name) + '</td>'
+                + '<td class="reg-count">' + insts.length + '</td>'
+                + '<td class="reg-ips">' + ips + '</td>'
+                + '</tr>';
+        });
+        if (!rows) {
+            box.innerHTML = '<div class="reg-empty">注册中心暂无服务</div>';
+            return;
+        }
+        box.innerHTML = '<table class="reg-table"><tbody>' + rows + '</tbody></table>';
+    }
+
+    // 渲染业务摘要：根据 businessType 区分 provider-a(商品) / provider-b(库存)
+    function renderBizSummary(prefix, info) {
+        var box = el('bizSummary' + prefix);
+        var bizTag = el('biz' + prefix);
+        if (!info) {
+            box.innerHTML = '<div class="biz-slogan">暂无在线实例，无法获取业务数据</div>';
+            return;
+        }
+        // 更新头部业务标识
+        if (info.displayName) bizTag.textContent = info.displayName;
+
+        if (info.businessType === 'product') {
+            // 商品服务
+            var prods = info.products || [];
+            var prodHtml = prods.map(function (p) {
+                var hot = (p.status === '热销');
+                return '<div class="biz-product">'
+                    + '<span class="pname">' + esc(p.name) + '</span>'
+                    + '<span class="pprice">¥' + esc(p.price) + '</span>'
+                    + '<span class="pstatus' + (hot ? ' hot' : '') + '">' + esc(p.status) + '</span>'
+                    + '</div>';
+            }).join('');
+            box.innerHTML =
+                '<div class="biz-slogan">' + esc(info.serviceSlogan || '') + '</div>'
+                + '<div class="biz-metrics">'
+                +   '<div class="biz-metric"><span class="m-val acc">' + esc(info.productCount || prods.length) + '</span><span class="m-label">在售商品数</span></div>'
+                + '</div>'
+                + '<div class="biz-products">' + prodHtml + '</div>';
+        } else if (info.businessType === 'inventory') {
+            // 库存服务
+            box.innerHTML =
+                '<div class="biz-slogan">' + esc(info.serviceSlogan || '') + '</div>'
+                + '<div class="biz-metrics">'
+                +   '<div class="biz-metric"><span class="m-val pur">' + fmt(info.skuCount) + '</span><span class="m-label">SKU 总数</span></div>'
+                +   '<div class="biz-metric"><span class="m-val">' + fmt(info.totalStock) + '</span><span class="m-label">库存总量</span></div>'
+                +   '<div class="biz-metric"><span class="m-val">' + esc(info.warehouseCount) + '</span><span class="m-label">仓库数</span></div>'
+                +   '<div class="biz-metric"><span class="m-val warn">' + esc(info.lowStockCount) + '</span><span class="m-label">低库存预警</span></div>'
+                + '</div>';
+        } else {
+            box.innerHTML = '<div class="biz-slogan">' + esc(info.serviceSlogan || '服务信息') + '</div>';
+        }
+    }
+
+    // 千分位格式化
+    function fmt(n) {
+        if (n == null) return '-';
+        return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    }
+
+    function render(data) {
+        var s = data.summary || {};
+        el('kpiSvc').textContent = s.totalServices;
+        el('kpiTotal').textContent = s.totalInstances;
+        el('kpiOnline').textContent = s.onlineInstances;
+        el('kpiOffline').textContent = s.offlineInstances;
+        renderService('A', data.providerA || {});
+        renderService('B', data.providerB || {});
+        renderConsumer(data.consumer || {});
+        renderRegistry(data);
+
+        var c = (data.consumer || {}).local || {};
+        el('footer').innerHTML =
+            '当前访问入口 Consumer · 主机 <code>' + esc(c.hostName) + '</code>'
+            + ' · IP <code>' + esc(c.ipAddress) + ':' + esc(c.port) + '</code>'
+            + ' · 服务名 <code>' + esc(c.serviceName) + '</code>'
+            + '<br><span style="color:#94a3b8;font-size:11.5px">© Alauda 灵雀云 · 云原生容器云平台 Demo · 仅供灵雀云售前演示使用</span>';
+    }
+
+    function fetchOnce() {
+        var pulse = el('pulse');
+        pulse.classList.add('loading');
+        fetch('/api/overview', { cache: 'no-store' })
+            .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+            .then(function (data) {
+                el('alertBar').style.display = 'none';
+                render(data);
+            })
+            .catch(function (e) {
+                el('alertBar').style.display = 'block';
+            })
+            .finally(function () {
+                pulse.classList.remove('loading');
+            });
+    }
+
+    fetchOnce();
+    setInterval(fetchOnce, REFRESH_MS);
+})();
+</script>
 </body>
 </html>
