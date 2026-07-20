@@ -44,7 +44,7 @@ Nacos 版本：2.2.x ~ 2.4.x
 
 - **consumer**：对外入口（端口 8080）。通过 `DiscoveryClient` 从 Nacos 获取 provider 的**全部实例**（多 Pod），逐一调用每个实例的 `/info`，从而在页面上展示全部 Pod 信息（而非负载均衡只显示一个）。前端为云平台控制台风格的实时 Dashboard。
 - **provider-a**：模拟**商品服务**（端口 8081）。返回主机名、IP、星级评分 + 商品列表（SKU/名称/价格/状态）。
-- **provider-b**：模拟**库存服务**（端口 8082）。返回主机名、IP、星级评分 + 库存汇总（SKU 总数/库存总量/仓库数/低库存预警）。
+- **provider-b**：模拟**库存服务**（端口 8082）。返回主机名、IP、星级评分 + 库存汇总（SKU 总数/库存总量/仓库数/低库存预警）和库存明细。
 - 两个 provider 的星级（颜色/数量）通过 Nacos 配置中心动态下发，支持 `@RefreshScope` 热刷新。
 - **可选中间件**（Redis/MySQL/Kafka）通过开关控制，默认关闭，详见下文「中间件条件接入」。
 
@@ -61,8 +61,8 @@ Nacos 版本：2.2.x ~ 2.4.x
 
 - **架构拓扑图**（SVG）：浏览器 → Consumer → Nacos → Provider A/B 的调用与注册关系，调用线带数据流动动画
 - **集群概览 KPI**：服务总数 / 实例总数 / 在线实例 / 离线实例
-- **技术栈卡片**：展示所用技术
-- **服务详情卡片**：consumer / provider-a / provider-b 三张卡片，各展示副本数、每个 Pod 的实例 ID、IP:端口、健康状态徽标（UP/DOWN）、业务数据
+- **技术栈卡片**：展示基础技术，并根据 `/api/overview` 动态显示已启用的 Redis、MySQL 和 Kafka
+- **服务详情卡片**：consumer / provider-a / provider-b 三张卡片，各展示副本数、每个 Pod 的实例 ID、IP:端口、健康状态徽标（UP/DOWN）、业务数据；Consumer 卡片同时展示 Redis 缓存与 Kafka 事件上报状态
 - **Nacos 注册表**：三列展示（服务名 / 实例数 / 实例 IP），实时同步自 Nacos
 - **实时刷新**：每 5 秒轮询 `/api/overview`，弹性伸缩（Pod 增减）时页面实时变化
 - **品牌标识**：灵雀云 Alauda 品牌露出
@@ -83,6 +83,71 @@ Docker 构建（在服务目录下）：
 
 ```bash
 docker build -t <service-name> .
+```
+
+### Docker Hub 镜像
+
+已发布的 `linux/amd64` 演示镜像：
+
+| 服务 | 镜像 |
+|------|------|
+| Consumer | `kevinlee822/consumer:latest` |
+| Provider A | `kevinlee822/providera:latest` |
+| Provider B | `kevinlee822/providerb:latest` |
+
+```bash
+docker pull kevinlee822/consumer:latest
+docker pull kevinlee822/providera:latest
+docker pull kevinlee822/providerb:latest
+```
+
+本项目当前没有 Docker Compose 文件。使用 Docker 演示时，需要先创建网络并启动 Nacos、Redis、MySQL、Kafka，再通过 `docker run` 启动各应用容器。下面是与本 Demo 一致的应用容器示例，基础设施容器需已加入 `demonet` 网络：
+
+```bash
+docker network create demonet 2>/dev/null || true
+
+# Provider A，可用不同容器名重复执行以模拟多副本
+docker run -d --name providera1 --network demonet \
+  -e NACOS_SERVER_ADDR=nacos:8848 \
+  -e NACOS_NAMESPACE=public \
+  -e ENABLE_MYSQL=true \
+  -e MYSQL_HOST=mysql \
+  -e MYSQL_PORT=3306 \
+  -e MYSQL_USER=root \
+  -e MYSQL_PASSWORD=<密码> \
+  -e MYSQL_DATABASE=provider_a_db \
+  kevinlee822/providera:latest
+
+# Provider B，可用不同容器名重复执行以模拟多副本
+docker run -d --name providerb1 --network demonet \
+  -e NACOS_SERVER_ADDR=nacos:8848 \
+  -e NACOS_NAMESPACE=public \
+  -e ENABLE_MYSQL=true \
+  -e MYSQL_HOST=mysql \
+  -e MYSQL_PORT=3306 \
+  -e MYSQL_USER=root \
+  -e MYSQL_PASSWORD=<密码> \
+  -e MYSQL_DATABASE=provider_b_db \
+  kevinlee822/providerb:latest
+
+# Consumer
+docker run -d --name consumer --network demonet -p 8080:8080 \
+  -e NACOS_SERVER_ADDR=nacos:8848 \
+  -e NACOS_NAMESPACE=public \
+  -e ENABLE_REDIS=true \
+  -e REDIS_HOST=redis \
+  -e REDIS_PORT=6379 \
+  -e ENABLE_KAFKA=true \
+  -e KAFKA_SERVER=kafka:9092 \
+  kevinlee822/consumer:latest
+```
+
+如果 Nacos 已开启认证，再为三个应用容器增加 `NACOS_USERNAME` 和 `NACOS_PASSWORD`；未开启认证时不要传入无效凭据。
+
+停止 Demo 容器：
+
+```bash
+docker stop consumer providera1 providerb1 nacos redis mysql kafka
 ```
 
 ## 必备基础设施
@@ -168,9 +233,57 @@ MYSQL_DATABASE=provider_b_db
 
 > 不设置任何 `ENABLE_XXX` 即为纯微服务模式，无需 Redis/MySQL/Kafka。
 
-### MySQL 表结构（应用启动自动建表）
+### MySQL 登录、建库与建表
 
-开启 `ENABLE_MYSQL=true` 后，provider 首次启动会自动执行 `schema.sql` 建表并灌入初始数据，无需手动建库建表（但需提前在 MySQL 里 `CREATE DATABASE provider_a_db` / `provider_b_db`）。
+开启 `ENABLE_MYSQL=true` 后，需要先创建两个业务数据库。Provider 首次启动会自动执行各自的 `schema.sql` 创建表并灌入初始数据。
+
+登录 MySQL：
+
+```bash
+# 本机安装的 MySQL
+mysql -h 127.0.0.1 -P 3306 -u root -p
+
+# MySQL 运行在 Docker 容器中
+docker exec -it mysql mysql -u root -p
+```
+
+进入 MySQL 后创建数据库：
+
+```sql
+CREATE DATABASE IF NOT EXISTS provider_a_db
+  DEFAULT CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+CREATE DATABASE IF NOT EXISTS provider_b_db
+  DEFAULT CHARACTER SET utf8mb4
+  COLLATE utf8mb4_unicode_ci;
+
+SHOW DATABASES;
+```
+
+也可以直接从宿主机执行：
+
+```bash
+docker exec -i mysql mysql -u root -p<密码> -e "CREATE DATABASE IF NOT EXISTS provider_a_db DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE DATABASE IF NOT EXISTS provider_b_db DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
+```
+
+> `-p<密码>` 中 `-p` 和密码之间不能有空格。生产环境建议交互输入密码或使用 Docker Secret，避免密码进入 Shell 历史。
+
+Provider 启动后验证表和数据：
+
+```sql
+USE provider_a_db;
+SHOW TABLES;
+DESCRIBE product;
+SELECT * FROM product ORDER BY id;
+
+USE provider_b_db;
+SHOW TABLES;
+DESCRIBE inventory;
+SELECT * FROM inventory ORDER BY id;
+```
+
+如果需要手动建表，可执行以下 SQL。
 
 **provider-a `product` 表**（商品 SKU 明细）：
 
