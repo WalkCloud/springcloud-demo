@@ -45,4 +45,21 @@ public class InventoryRepository {
             return null;
         }
     }
+
+    /**
+     * 查询全部 SKU 明细（含库存状态判断）。
+     * @return 每条 SKU 的 sku/name/stock/warehouse/status 列表；MySQL 未启用或失败返回 null。
+     */
+    public java.util.List<java.util.Map<String, Object>> findAll() {
+        if (!isEnabled()) return null;
+        try {
+            return jdbcTemplate.queryForList(
+                    "SELECT sku, name, stock, warehouse, low_stock_threshold, " +
+                    "       CASE WHEN stock < low_stock_threshold THEN '低库存' ELSE '正常' END AS status " +
+                    "FROM inventory ORDER BY id");
+        } catch (Exception e) {
+            System.err.println("[provider-b] 查询 inventory 明细失败: " + e.getMessage());
+            return null;
+        }
+    }
 }

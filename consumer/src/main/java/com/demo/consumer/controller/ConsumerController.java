@@ -55,6 +55,10 @@ public class ConsumerController {
         Map<String, Object> cached = cacheService.getOverview();
         if (cached != null) {
             cached.put("cached", true);  // 标识命中缓存
+            // 更新 middleware.redis.hit 为 true（本次命中）
+            Map<String, Object> providerA = (Map<String, Object>) cached.get("providerA");
+            Map<String, Object> providerB = (Map<String, Object>) cached.get("providerB");
+            cached.put("middleware", buildMiddlewareStatus(providerA, providerB, true));
             return cached;
         }
 
@@ -105,8 +109,58 @@ public class ConsumerController {
         summary.put("offlineInstances", offlineInstances);
         root.put("summary", summary);
 
+        // ---- 中间件接入状态（供前端动态展示技术栈卡片 + Consumer 卡片标识）----
+        root.put("middleware", buildMiddlewareStatus(providerA, providerB, false));
+
         root.put("timestamp", System.currentTimeMillis());
         return root;
+    }
+
+    /**
+     * 构建中间件启用状态。
+     * Redis/Kafka 来自 consumer 自身开关；MySQL 来自 provider 返回的 dataSource 字段推断。
+     * redisHit 表示本次请求是否命中 Redis 缓存。
+     */
+    private Map<String, Object> buildMiddlewareStatus(Map<String, Object> providerA,
+                                                       Map<String, Object> providerB,
+                                                       boolean redisHit) {
+        Map<String, Object> mw = new LinkedHashMap<>();
+
+        // Redis（consumer 是否启用）
+        Map<String, Object> redis = new LinkedHashMap<>();
+        redis.put("enabled", cacheService.isEnabled());
+        redis.put("hit", redisHit);
+        mw.put("redis", redis);
+
+        // Kafka（consumer 是否启用）
+        Map<String, Object> kafka = new LinkedHashMap<>();
+        kafka.put("enabled", eventProducer.isEnabled());
+        kafka.put("topic", "consumer-access-event");
+        mw.put("kafka", kafka);
+
+        // MySQL（从两个 provider 的 dataSource 推断是否走库）
+        java.util.List<String> mysqlProviders = new java.util.ArrayList<>();
+        if (isMysqlProvider(providerA)) mysqlProviders.add("provider-a");
+        if (isMysqlProvider(providerB)) mysqlProviders.add("provider-b");
+        Map<String, Object> mysql = new LinkedHashMap<>();
+        mysql.put("enabled", !mysqlProviders.isEmpty());
+        mysql.put("providers", mysqlProviders);
+        mw.put("mysql", mysql);
+
+        return mw;
+    }
+
+    /** 判断某 provider 是否走 MySQL（取第一个在线实例的 dataSource 字段） */
+    @SuppressWarnings("unchecked")
+    private boolean isMysqlProvider(Map<String, Object> svc) {
+        if (svc == null) return false;
+        java.util.List<Map<String, Object>> insts = (java.util.List<Map<String, Object>>) svc.get("instances");
+        if (insts == null || insts.isEmpty()) return false;
+        for (Map<String, Object> inst : insts) {
+            Map<String, Object> info = (Map<String, Object>) inst.get("info");
+            if (info != null && "mysql".equals(info.get("dataSource"))) return true;
+        }
+        return false;
     }
 
     /**

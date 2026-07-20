@@ -30,6 +30,22 @@ public class ProviderBController {
     @Autowired
     private InventoryRepository inventoryRepository;
 
+    /** 内存兜底库存明细（MySQL 未启用或不可达时使用） */
+    private static final java.util.List<java.util.Map<String, Object>> FALLBACK_INVENTORIES = java.util.Arrays.asList(
+            inv("SKU-0001", "云原生实战手册", 3200, "wh-1", "正常"),
+            inv("SKU-0002", "微服务架构指南", 4500, "wh-1", "正常"),
+            inv("SKU-0003", "Kubernetes 进阶", 30, "wh-2", "低库存"),
+            inv("SKU-0004", "DevOps 落地指南", 12000, "wh-1", "正常"),
+            inv("SKU-0005", "Service Mesh 实战", 45, "wh-3", "低库存")
+    );
+
+    private static java.util.Map<String, Object> inv(String sku, String name, int stock, String warehouse, String status) {
+        java.util.Map<String, Object> m = new java.util.LinkedHashMap<>();
+        m.put("sku", sku); m.put("name", name); m.put("stock", stock);
+        m.put("warehouse", warehouse); m.put("status", status);
+        return m;
+    }
+
     @GetMapping("/info")
     public Map<String, Object> getInfo() {
         Map<String, Object> result = new HashMap<>();
@@ -67,6 +83,16 @@ public class ProviderBController {
             result.put("warehouseCount", warehouseCount);
             result.put("lowStockCount", lowStockCount);
             result.put("dataSource", dataSource);  // 标识数据来源
+
+            // 库存明细列表：MySQL 启用时查全量 SKU 明细；否则用内存兜底
+            java.util.List<java.util.Map<String, Object>> inventories = null;
+            if (inventoryRepository.isEnabled()) {
+                inventories = inventoryRepository.findAll();
+            }
+            if (inventories == null) {
+                inventories = FALLBACK_INVENTORIES;
+            }
+            result.put("inventories", inventories);
             result.put("serviceSlogan", "提供实时库存与仓储信息");
         } catch (Exception e) {
             result.put("error", "无法获取主机信息");

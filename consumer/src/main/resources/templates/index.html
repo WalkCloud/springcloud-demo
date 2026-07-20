@@ -202,6 +202,14 @@
         }
         .tech-card .t-name { font-size: 13px; font-weight: 700; }
         .tech-card .t-role { font-size: 11px; color: var(--text-sub); }
+        /* Consumer 卡片：中间件接入标识 */
+        .mw-tags { margin-top: 10px; display: flex; gap: 6px; flex-wrap: wrap; }
+        .mw-tag {
+            font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 6px;
+            display: inline-flex; align-items: center; gap: 3px;
+        }
+        .mw-tag.redis { background: #fef2f2; color: #dc2626; }
+        .mw-tag.kafka { background: #f5f3ff; color: #7c3aed; }
 
         /* ===== Service cards ===== */
         .svc-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
@@ -457,13 +465,14 @@
 
     <!-- ===== Tech Stack ===== -->
     <div class="section-title">技术栈 · Technology Stack</div>
-    <div class="tech-grid">
-        <div class="tech-card"><div class="tech-emoji">☕</div><div class="t-name">OpenJDK 17</div><div class="t-role">运行时</div></div>
-        <div class="tech-card"><div class="tech-emoji" style="background:#ecfdf5">🍃</div><div class="t-name">Spring Boot 3.0</div><div class="t-role">应用框架</div></div>
+    <div class="tech-grid" id="techGrid">
+        <div class="tech-card"><div class="tech-emoji">☕</div><div class="t-name">OpenJDK 21</div><div class="t-role">运行时</div></div>
+        <div class="tech-card"><div class="tech-emoji" style="background:#ecfdf5">🍃</div><div class="t-name">Spring Boot 3.2</div><div class="t-role">应用框架</div></div>
         <div class="tech-card"><div class="tech-emoji" style="background:#f5f3ff">☁️</div><div class="t-name">Spring Cloud</div><div class="t-role">微服务框架</div></div>
         <div class="tech-card"><div class="tech-emoji" style="background:#eff4ff">🌐</div><div class="t-name">Cloud Alibaba</div><div class="t-role">微服务组件</div></div>
         <div class="tech-card"><div class="tech-emoji" style="background:#ecfdf5">🗂</div><div class="t-name">Nacos</div><div class="t-role">注册/配置中心</div></div>
         <div class="tech-card"><div class="tech-emoji" style="background:#326ce5; color:#fff">☸</div><div class="t-name">Kubernetes</div><div class="t-role">容器编排</div></div>
+        <!-- 以下中间件卡片由 JS 根据 /api/overview 的 middleware 状态动态插入 -->
     </div>
 
     <!-- ===== Services ===== -->
@@ -563,7 +572,7 @@
     }
 
     // 渲染 consumer 卡片（流量入口，展示副本数 + 实例列表，无业务数据）
-    function renderConsumer(svc) {
+    function renderConsumer(svc, mw) {
         var instances = svc.instances || [];
         var b = badgeFor(svc.total, svc.online);
         var badge = el('badgeC');
@@ -571,14 +580,16 @@
         badge.className = 'badge ' + b.cls;
         bt.textContent = b.text;
 
-        // 业务摘要区：展示 consumer 作为流量入口的关键信息
+        // 业务摘要区：展示 consumer 作为流量入口的关键信息 + 中间件接入标识
         var box = el('bizSummaryC');
+        var mwTags = renderMwTags(mw);  // 中间接入标识
         box.innerHTML =
             '<div class="biz-slogan">对外流量入口 · 接收用户请求并调用后端 Provider 服务</div>'
             + '<div class="biz-metrics">'
             +   '<div class="biz-metric"><span class="m-val acc">' + svc.total + '</span><span class="m-label">运行副本数</span></div>'
             +   '<div class="biz-metric"><span class="m-val">' + esc(svc.port || 8080) + '</span><span class="m-label">服务端口</span></div>'
-            + '</div>';
+            + '</div>'
+            + (mwTags ? '<div class="mw-tags">' + mwTags + '</div>' : '');
 
         // 实例列表（与 provider 卡片风格一致：Pod编号+主机名 / IP:端口 / 实例ID）
         var list = el('listC');
@@ -602,6 +613,40 @@
                 + '<span class="inst-status-tag ' + (up ? 'up' : 'down') + '">' + (up ? 'UP' : 'DOWN') + '</span>'
                 + '</div>';
         }).join('');
+    }
+
+    // Consumer 卡片：中间件接入标识（让用户直观看到 consumer 用了什么）
+    function renderMwTags(mw) {
+        if (!mw) return '';
+        var tags = '';
+        if (mw.redis && mw.redis.enabled) {
+            // Redis：显示是否命中缓存
+            tags += '<span class="mw-tag redis">⚡ Redis 缓存' + (mw.redis.hit ? ' · 命中' : ' · 已接入') + '</span>';
+        }
+        if (mw.kafka && mw.kafka.enabled) {
+            tags += '<span class="mw-tag kafka">✉ Kafka 事件上报</span>';
+        }
+        return tags;
+    }
+
+    // 技术栈区：根据中间件启用状态，动态显示 Redis/MySQL/Kafka 卡片
+    function renderTechStack(mw) {
+        var grid = el('techGrid');
+        if (!grid) return;
+        // 移除之前的动态卡片
+        grid.querySelectorAll('.tech-dynamic').forEach(function (n) { n.remove(); });
+        if (!mw) return;
+        var html = '';
+        if (mw.redis && mw.redis.enabled) {
+            html += '<div class="tech-card tech-dynamic"><div class="tech-emoji" style="background:#fef2f2">⚡</div><div class="t-name">Redis</div><div class="t-role">缓存</div></div>';
+        }
+        if (mw.mysql && mw.mysql.enabled) {
+            html += '<div class="tech-card tech-dynamic"><div class="tech-emoji" style="background:#fff7ed">🗄</div><div class="t-name">MySQL</div><div class="t-role">持久化</div></div>';
+        }
+        if (mw.kafka && mw.kafka.enabled) {
+            html += '<div class="tech-card tech-dynamic"><div class="tech-emoji" style="background:#f5f3ff">✉</div><div class="t-name">Kafka</div><div class="t-role">消息队列</div></div>';
+        }
+        if (html) grid.insertAdjacentHTML('beforeend', html);
     }
 
     // 渲染 Nacos 注册表：聚合所有服务的实例，展示 服务名 + IP:Port
@@ -667,6 +712,15 @@
                 + '<div class="biz-products">' + prodHtml + '</div>';
         } else if (info.businessType === 'inventory') {
             // 库存服务
+            var invList = info.inventories || [];
+            var invHtml = invList.map(function (it) {
+                var low = (it.status === '低库存' || (typeof it.stock === 'number' && it.lowStockThreshold != null && it.stock < it.lowStockThreshold));
+                return '<div class="biz-product">'
+                    + '<span class="pname">' + esc(it.name || it.sku) + '</span>'
+                    + '<span class="pprice">' + esc(it.stock) + ' 件</span>'
+                    + '<span class="pstatus' + (low ? ' hot' : '') + '">' + (low ? '低库存' : '正常') + '</span>'
+                    + '</div>';
+            }).join('');
             box.innerHTML =
                 '<div class="biz-slogan">' + esc(info.serviceSlogan || '') + '</div>'
                 + '<div class="biz-metrics">'
@@ -674,7 +728,8 @@
                 +   '<div class="biz-metric"><span class="m-val">' + fmt(info.totalStock) + '</span><span class="m-label">库存总量</span></div>'
                 +   '<div class="biz-metric"><span class="m-val">' + esc(info.warehouseCount) + '</span><span class="m-label">仓库数</span></div>'
                 +   '<div class="biz-metric"><span class="m-val warn">' + esc(info.lowStockCount) + '</span><span class="m-label">低库存预警</span></div>'
-                + '</div>';
+                + '</div>'
+                + (invHtml ? '<div class="biz-products">' + invHtml + '</div>' : '');
         } else {
             box.innerHTML = '<div class="biz-slogan">' + esc(info.serviceSlogan || '服务信息') + '</div>';
         }
@@ -694,7 +749,8 @@
         el('kpiOffline').textContent = s.offlineInstances;
         renderService('A', data.providerA || {});
         renderService('B', data.providerB || {});
-        renderConsumer(data.consumer || {});
+        renderConsumer(data.consumer || {}, data.middleware || {});
+        renderTechStack(data.middleware || {});
         renderRegistry(data);
 
         var c = (data.consumer || {}).local || {};
