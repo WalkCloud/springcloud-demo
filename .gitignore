@@ -1,6 +1,8 @@
 # 构建产物
 target/
 local-repo/
+nexus-offline-repo/
+nexus-upload/
 
 # 镜像包与大文件
 images/

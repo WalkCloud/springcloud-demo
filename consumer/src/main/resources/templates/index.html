@@ -138,6 +138,7 @@
         .reg-table code {
             font-family: "SF Mono", Consolas, monospace; font-size: 11.5px;
             background: #eef2f7; padding: 1px 6px; border-radius: 4px; color: #475569;
+            word-break: break-all; overflow-wrap: anywhere;
         }
         .reg-empty { padding: 24px; text-align: center; color: var(--text-sub); font-size: 12px; }
         .topo-svg { display: block; width: 100%; height: auto; }
@@ -243,7 +244,7 @@
             display: flex; align-items: center; gap: 10px; font-size: 12.5px;
             padding: 6px 10px; background: #f8fafc; border-radius: 8px;
         }
-        .biz-product .pname { flex: 1; font-weight: 600; }
+        .biz-product .pname { flex: 1; min-width: 0; font-weight: 600; word-break: break-all; overflow-wrap: anywhere; }
         .biz-product .pprice { color: var(--primary); font-weight: 700; }
         .biz-product .pstatus {
             font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 5px;
@@ -273,14 +274,17 @@
         .inst .status-dot.up { background: var(--green); }
         .inst .status-dot.down { background: var(--red); box-shadow: 0 0 0 3px var(--red-soft); }
         .inst .main { flex: 1; min-width: 0; }
-        .inst .host { font-size: 13.5px; font-weight: 700; }
+        .inst .host { font-size: 13.5px; font-weight: 700; word-break: break-all; overflow-wrap: anywhere; }
         .inst .meta {
             font-size: 11.5px; color: var(--text-sub); margin-top: 2px;
             display: flex; gap: 12px; flex-wrap: wrap;
         }
+        .inst .meta > span { max-width: 100%; }
         .inst .meta code {
             font-family: "SF Mono", Consolas, monospace; font-size: 11.5px;
             background: #f1f4f9; padding: 1px 6px; border-radius: 4px; color: #475569;
+            word-break: break-all;     /* 超长字符串强制换行 */
+            overflow-wrap: anywhere;
         }
         .inst .stars { font-size: 15px; letter-spacing: 1px; white-space: nowrap; }
         .inst-status-tag {
@@ -302,6 +306,7 @@
         footer code {
             font-family: "SF Mono", Consolas, monospace; background: #f1f4f9;
             padding: 2px 7px; border-radius: 5px; color: #475569; font-size: 12px;
+            word-break: break-all; overflow-wrap: anywhere;
         }
 
         .skeleton { color: #cbd5e1 !important; }
