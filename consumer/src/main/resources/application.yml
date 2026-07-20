@@ -24,9 +24,19 @@ app:
   middleware:
     redis:
       enabled: ${ENABLE_REDIS:false}
+      # Redis 部署模式：不填=单机(host:port) | sentinel=哨兵 | cluster=集群
+      mode: ${REDIS_MODE:}
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
       password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      # 哨兵模式（REDIS_MODE=sentinel 时生效）
+      sentinel:
+        master: ${REDIS_SENTINEL_MASTER:mymaster}
+        nodes: ${REDIS_SENTINEL_NODES:}     # 逗号分隔，如 sentry1:26379,sentry2:26379
+      # 集群模式（REDIS_MODE=cluster 时生效）
+      cluster:
+        nodes: ${REDIS_CLUSTER_NODES:}      # 逗号分隔，如 node1:6379,node2:6379,node3:6379
     kafka:
       enabled: ${ENABLE_KAFKA:false}
       bootstrapServers: ${KAFKA_SERVER:localhost:9092}

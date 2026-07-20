@@ -5,10 +5,10 @@
 ## 运行环境
 
 ```
-OpenJDK 版本：eclipse-temurin 17
-Spring Boot 版本：3.0.2
-Spring Cloud 版本：2022.0.0
-Spring Cloud For Alibaba 版本：2022.0.0.0
+OpenJDK 版本：eclipse-temurin 21.0.11_10
+Spring Boot 版本：3.2.5
+Spring Cloud 版本：2023.0.1
+Spring Cloud For Alibaba 版本：2023.0.1.0
 Nacos 版本：2.2.x ~ 2.4.x
 容器编排：Kubernetes / Docker
 ```
@@ -17,8 +17,8 @@ Nacos 版本：2.2.x ~ 2.4.x
 
 | 技术 | 角色 |
 |------|------|
-| OpenJDK 17 | 运行时 |
-| Spring Boot 3.0 | 应用框架 |
+| OpenJDK 21 | 运行时 |
+| Spring Boot 3.2 | 应用框架 |
 | Spring Cloud | 微服务框架 |
 | Spring Cloud Alibaba | 微服务组件（Nacos 注册/配置中心） |
 | Kubernetes | 容器编排 |
