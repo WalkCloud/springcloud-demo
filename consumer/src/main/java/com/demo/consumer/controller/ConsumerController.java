@@ -1,5 +1,7 @@
 package com.demo.consumer.controller;
 
+import com.demo.consumer.service.CacheService;
+import com.demo.consumer.service.EventProducer;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cloud.client.ServiceInstance;
@@ -26,6 +28,12 @@ public class ConsumerController {
     @Autowired
     private DiscoveryClient discoveryClient;
 
+    @Autowired
+    private CacheService cacheService;
+
+    @Autowired
+    private EventProducer eventProducer;
+
     @Value("${server.port:8080}")
     private String serverPort;
 
@@ -35,10 +43,34 @@ public class ConsumerController {
         return "index";
     }
 
-    /** 返回聚合后的服务总览 JSON，供前端轮询刷新。 */
+    /**
+     * 返回聚合后的服务总览 JSON，供前端轮询刷新。
+     * 链路：查 Redis 缓存 → 命中直接返回 → 未命中走聚合 → 写缓存 + 发 Kafka 事件。
+     * 缓存/Kafka 未启用或异常都不影响主流程（自动降级）。
+     */
     @GetMapping("/api/overview")
     @ResponseBody
     public Map<String, Object> overview() {
+        // 1. 先查 Redis 缓存
+        Map<String, Object> cached = cacheService.getOverview();
+        if (cached != null) {
+            cached.put("cached", true);  // 标识命中缓存
+            return cached;
+        }
+
+        // 2. 未命中，走聚合
+        Map<String, Object> root = buildOverview();
+
+        // 3. 写缓存（异步、失败静默）+ 发 Kafka 访问事件
+        cacheService.saveOverview(root);
+        eventProducer.sendAccessEvent("{\"type\":\"overview-access\",\"timestamp\":" + System.currentTimeMillis()
+                + ",\"host\":\"" + safeLocalHostName() + "\"}");
+        root.put("cached", false);
+        return root;
+    }
+
+    /** 构建聚合 overview（原聚合逻辑，从 Redis 缓存缺失时调用） */
+    private Map<String, Object> buildOverview() {
         Map<String, Object> root = new LinkedHashMap<>();
 
         // ---- consumer 自身聚合数据（含副本数 + 实例列表）----
@@ -128,6 +160,15 @@ public class ConsumerController {
             info.put("ipAddress", "unknown");
         }
         return info;
+    }
+
+    /** 安全获取本机主机名（Kafka 事件用） */
+    private String safeLocalHostName() {
+        try {
+            return InetAddress.getLocalHost().getHostName();
+        } catch (Exception e) {
+            return "unknown";
+        }
     }
 
     /**

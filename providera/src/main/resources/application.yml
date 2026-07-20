@@ -3,6 +3,11 @@ server:
 spring:
   application:
     name: provider-a
+  # 禁用数据源自动配置，改由 DataSourceConfig 按开关手动创建，避免无 MySQL 时启动卡顿
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration
+      - org.springframework.boot.autoconfigure.sql.init.SqlInitializationAutoConfiguration
   cloud:
     nacos:
       discovery:
@@ -27,3 +32,14 @@ management:
   endpoint:
     health:
       show-details: always  # 显示健康检查的详细信息
+
+# 中间件开关与连接配置（默认关闭，ENABLE_MYSQL=true 时启用 MySQL）
+app:
+  middleware:
+    mysql:
+      enabled: ${ENABLE_MYSQL:false}
+      host: ${MYSQL_HOST:localhost}
+      port: ${MYSQL_PORT:3306}
+      database: ${MYSQL_DATABASE:provider_a_db}
+      username: ${MYSQL_USER:root}
+      password: ${MYSQL_PASSWORD:root}

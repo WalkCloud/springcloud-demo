@@ -5,6 +5,12 @@ spring:
     name: consumer
   thymeleaf:
     cache: false # 开发时关闭缓存
+  # 禁用 Redis/Kafka 自动配置，改由 RedisConfig 按开关手动创建，避免无中间件时启动卡顿
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+      - org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration
   cloud:
     nacos:
       discovery:
@@ -12,3 +18,16 @@ spring:
         namespace: ${NACOS_NAMESPACE:public}
         username: ${NACOS_USERNAME:nacos}
         password: ${NACOS_PASSWORD:nacos}
+
+# 中间件开关与连接配置（默认关闭，ENABLE_XXX=true 时启用对应中间件）
+app:
+  middleware:
+    redis:
+      enabled: ${ENABLE_REDIS:false}
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+    kafka:
+      enabled: ${ENABLE_KAFKA:false}
+      bootstrapServers: ${KAFKA_SERVER:localhost:9092}
+      topic: consumer-access-event

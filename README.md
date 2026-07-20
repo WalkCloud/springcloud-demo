@@ -22,24 +22,31 @@ Nacos 版本：2.2.x ~ 2.4.x
 | Spring Cloud | 微服务框架 |
 | Spring Cloud Alibaba | 微服务组件（Nacos 注册/配置中心） |
 | Kubernetes | 容器编排 |
+| Redis（可选） | 缓存（consumer 缓存聚合结果） |
+| MySQL 8（可选） | 持久化（provider-a/b 业务数据） |
+| Kafka（可选） | 消息队列（consumer 异步上报访问事件） |
 | Thymeleaf | 模板引擎（仅 consumer 使用） |
 
 ## 架构
 
 ```
 浏览器 → consumer (8080, 控制台 Dashboard)
+              ├─ Redis   (缓存聚合结果，ENABLE_REDIS=true 时启用)
+              ├─ Kafka   (异步上报访问事件，ENABLE_KAFKA=true 时启用)
               ↓ DiscoveryClient 从 Nacos 获取全部实例并逐一调用
          Nacos 注册中心 / 配置中心
               ↓
     ┌─────────┴──────────┐
  provider-a (8081)   provider-b (8082)
    商品服务            库存服务
+   └─ MySQL ──┐  └─ MySQL ──┘  (ENABLE_MYSQL=true 时启用，各自独立库)
 ```
 
 - **consumer**：对外入口（端口 8080）。通过 `DiscoveryClient` 从 Nacos 获取 provider 的**全部实例**（多 Pod），逐一调用每个实例的 `/info`，从而在页面上展示全部 Pod 信息（而非负载均衡只显示一个）。前端为云平台控制台风格的实时 Dashboard。
 - **provider-a**：模拟**商品服务**（端口 8081）。返回主机名、IP、星级评分 + 商品列表（SKU/名称/价格/状态）。
 - **provider-b**：模拟**库存服务**（端口 8082）。返回主机名、IP、星级评分 + 库存汇总（SKU 总数/库存总量/仓库数/低库存预警）。
 - 两个 provider 的星级（颜色/数量）通过 Nacos 配置中心动态下发，支持 `@RefreshScope` 热刷新。
+- **可选中间件**（Redis/MySQL/Kafka）通过开关控制，默认关闭，详见下文「中间件条件接入」。
 
 ### Consumer 接口
 
@@ -107,6 +114,126 @@ star:
 
 > `application.yml` 中的 `import` 值必须与 Nacos 配置中心的 Data ID 一致，配置才能下发到应用。provider-b 同理（`provider-b.yml`）。
 
+## 中间件条件接入（Redis / MySQL / Kafka）
+
+三个中间件通过**环境变量开关**控制是否启用，默认全部关闭。不启用时 demo 行为与纯微服务完全一致；启用后连不上则自动降级，绝不中断。
+
+| 中间件 | 接入服务 | 用途 | 启用开关 |
+|--------|---------|------|---------|
+| Redis | consumer | 缓存 `/api/overview` 聚合结果（TTL 10s） | `ENABLE_REDIS=true` |
+| MySQL | provider-a / provider-b | 业务数据持久化（按 SKU 明细存储） | `ENABLE_MYSQL=true` |
+| Kafka | consumer | 异步上报访问事件到 topic `consumer-access-event` | `ENABLE_KAFKA=true` |
+
+### 设计原则
+
+- **开关控制**：开关关 → 对应 Bean 不创建、不连接（用 `@ConditionalOnProperty` + `autoconfigure.exclude` 双保险），demo 与改造前行为 100% 一致。
+- **运行时降级**：开关开但连不上 → try-catch 回退到内存默认数据，demo 继续可用。
+- **接口零变化**：`/info` 返回结构前后一致，Dashboard 前端无需改动。provider 返回额外带 `dataSource` 字段（`"mysql"` 或 `"memory"`）标识数据来源，便于演示区分。
+
+### 数据来源对照
+
+| 场景 | provider 数据来源 | 演示价值 |
+|------|-----------------|---------|
+| 不接 MySQL | 内存硬编码（固定） | 基础展示，数据写死、改不了 |
+| 接 MySQL | 数据库实时查询 | **现场往库里 INSERT 新数据，Dashboard 5 秒内实时刷新显示** ← 核心演示卖点 |
+
+### 环境变量
+
+```bash
+# Consumer（Redis + Kafka，按需开启）
+ENABLE_REDIS=true
+REDIS_HOST=<redis-host>
+REDIS_PORT=6379
+REDIS_PASSWORD=<可选>
+
+ENABLE_KAFKA=true
+KAFKA_SERVER=<kafka-host>:9092
+
+# Provider-a（MySQL，库 provider_a_db）
+ENABLE_MYSQL=true
+MYSQL_HOST=<mysql-host>
+MYSQL_PORT=3306
+MYSQL_USER=root
+MYSQL_PASSWORD=<密码>
+MYSQL_DATABASE=provider_a_db
+
+# Provider-b（MySQL，库 provider_b_db）
+ENABLE_MYSQL=true
+MYSQL_HOST=<mysql-host>
+MYSQL_PORT=3306
+MYSQL_USER=root
+MYSQL_PASSWORD=<密码>
+MYSQL_DATABASE=provider_b_db
+```
+
+> 不设置任何 `ENABLE_XXX` 即为纯微服务模式，无需 Redis/MySQL/Kafka。
+
+### MySQL 表结构（应用启动自动建表）
+
+开启 `ENABLE_MYSQL=true` 后，provider 首次启动会自动执行 `schema.sql` 建表并灌入初始数据，无需手动建库建表（但需提前在 MySQL 里 `CREATE DATABASE provider_a_db` / `provider_b_db`）。
+
+**provider-a `product` 表**（商品 SKU 明细）：
+
+```sql
+CREATE TABLE IF NOT EXISTS product (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  sku VARCHAR(32) NOT NULL UNIQUE,
+  name VARCHAR(128) NOT NULL,
+  price DECIMAL(10,2) NOT NULL,
+  status VARCHAR(16) DEFAULT '在售'
+);
+```
+
+**provider-b `inventory` 表**（库存 SKU 明细，汇总值用 SQL 聚合算出）：
+
+```sql
+CREATE TABLE IF NOT EXISTS inventory (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  sku VARCHAR(32) NOT NULL UNIQUE,
+  name VARCHAR(128),
+  stock INT NOT NULL DEFAULT 0,
+  warehouse VARCHAR(32) DEFAULT 'wh-1',
+  low_stock_threshold INT DEFAULT 50
+);
+```
+
+### 演示：现场修改数据，Dashboard 实时刷新
+
+接上 MySQL 并 `ENABLE_MYSQL=true` 启动 provider 后，用 SQL 客户端连库执行以下命令，Dashboard 会在下一次轮询（≤5 秒）实时展示变化。
+
+**provider-a 新增一个商品**：
+```sql
+USE provider_a_db;
+INSERT INTO product (sku, name, price, status) VALUES ('P-1004', '云原生安全实战', 99.00, '热销');
+```
+
+**provider-a 修改商品价格**：
+```sql
+USE provider_a_db;
+UPDATE product SET price = 199.00, status = '热销' WHERE sku = 'P-1001';
+```
+
+**provider-a 删除商品**：
+```sql
+USE provider_a_db;
+DELETE FROM product WHERE sku = 'P-1002';
+```
+
+**provider-b 新增一个 SKU 库存**（库存汇总指标会随之自动重新聚合）：
+```sql
+USE provider_b_db;
+INSERT INTO inventory (sku, name, stock, warehouse, low_stock_threshold)
+VALUES ('SKU-0009', 'ArgoCD 实战', 600, 'wh-1', 200);
+```
+
+**provider-b 调整某 SKU 库存量**（演示低库存预警变化）：
+```sql
+USE provider_b_db;
+UPDATE inventory SET stock = 10 WHERE sku = 'SKU-0001';  -- 低于阈值，low_stock_count 会 +1
+```
+
+执行后刷新 consumer 页面（http://<consumer-ip>:8080/），商品卡片/库存指标会实时反映库里的最新数据。provider 返回的 `dataSource` 字段为 `"mysql"` 即表示数据来自数据库。
+
 ## 示例效果
 
 访问 `http://<consumer 所在主机 IP>:8080/` 即可看到 Dashboard：
@@ -114,15 +241,8 @@ star:
 - **集群概览**：3 个服务、N 个实例、全部在线
 - **拓扑图**：直观展示浏览器 → Consumer → Provider 的调用链与 Nacos 注册关系
 - **服务详情**：每个 provider 列出所有 Pod（多副本时每个 Pod 的 IP/状态都展示），provider-a 显示商品列表，provider-b 显示库存指标
-- **实时刷新**：演示弹性伸缩时（扩容/缩容 provider 副本），页面 5 秒内自动更新 Pod 数量与列表
-
-## 容器镜像
-
-```
-consumer 镜像：registry.cn-beijing.aliyuncs.com/walkcloud/consumer:latest
-providera 镜像：registry.cn-beijing.aliyuncs.com/walkcloud/providera:latest
-providerb 镜像：registry.cn-beijing.aliyuncs.com/walkcloud/providerb:latest
-```
+- **弹性伸缩**：演示扩缩容 provider 副本，页面 5 秒内自动更新 Pod 数量与列表
+- **中间件联动**：接 MySQL 后现场 INSERT/UPDATE，Dashboard 实时刷新数据（详见上文「中间件条件接入」）
 
 ## 访问关系
 
