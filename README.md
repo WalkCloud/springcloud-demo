@@ -237,17 +237,13 @@ MYSQL_DATABASE=provider_b_db
 
 开启 `ENABLE_MYSQL=true` 后，需要先创建两个业务数据库。Provider 首次启动会自动执行各自的 `schema.sql` 创建表并灌入初始数据。
 
-登录 MySQL：
+使用 MySQL 客户端登录：
 
 ```bash
-# 本机安装的 MySQL
 mysql -h 127.0.0.1 -P 3306 -u root -p
-
-# MySQL 运行在 Docker 容器中
-docker exec -it mysql mysql -u root -p
 ```
 
-进入 MySQL 后创建数据库：
+根据提示输入密码，进入 MySQL 后创建数据库：
 
 ```sql
 CREATE DATABASE IF NOT EXISTS provider_a_db
@@ -260,14 +256,6 @@ CREATE DATABASE IF NOT EXISTS provider_b_db
 
 SHOW DATABASES;
 ```
-
-也可以直接从宿主机执行：
-
-```bash
-docker exec -i mysql mysql -u root -p<密码> -e "CREATE DATABASE IF NOT EXISTS provider_a_db DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci; CREATE DATABASE IF NOT EXISTS provider_b_db DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-```
-
-> `-p<密码>` 中 `-p` 和密码之间不能有空格。生产环境建议交互输入密码或使用 Docker Secret，避免密码进入 Shell 历史。
 
 Provider 启动后验证表和数据：
 
