@@ -103,7 +103,7 @@ docker pull kevinlee822/providerb:latest
 
 ### Kubernetes 部署
 
-本项目不使用 Docker Compose，目标运行环境为 Kubernetes。部署应用前，请确保集群中已存在可访问的 Nacos、Redis、MySQL 和 Kafka，并且以下 Service DNS 名称可用：
+本项目目标运行环境为 Kubernetes。部署应用前，请确保集群中已存在可访问的 Nacos、Redis、MySQL 和 Kafka，并且以下 Service DNS 名称可用：
 
 - `nacos:8848`
 - `redis:6379`
