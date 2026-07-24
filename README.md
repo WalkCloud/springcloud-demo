@@ -445,128 +445,61 @@ MYSQL_DATABASE=provider_b_db
 
 > 不设置任何 `ENABLE_XXX` 即为纯微服务模式，无需 Redis/MySQL/Kafka。
 
-### MySQL 登录、建库与建表
+### 演示：进入 MySQL 创建测试数据
 
-开启 `ENABLE_MYSQL=true` 后，需要先创建两个业务数据库。下面按“登录 → 建库 → 选库 → 建表 → 写入测试数据 → 查询验证”的顺序操作，适合不熟悉 MySQL 命令的用户。
+Provider A/B 启动时会自动创建 `provider_a_db.product` 和 `provider_b_db.inventory` 表并写入初始数据。正常部署不需要手动建库或建表。
 
-#### 第 1 步：连接 MySQL
+下面的命令只用于现场演示时进入数据库并新增或修改测试数据，以验证 Dashboard 能否实时展示 MySQL 中的变化。
 
-确认已经安装 MySQL 客户端，然后在终端执行：
+#### 第 1 步：登录 MySQL
+
+在安装了 MySQL 客户端的机器上执行：
 
 ```bash
 mysql -h <MySQL地址> -P 3306 -u root -p
 ```
 
-例如 MySQL 就在当前机器：
+例如 MySQL 地址是 `192.168.1.100`：
 
 ```bash
-mysql -h 127.0.0.1 -P 3306 -u root -p
+mysql -h 192.168.1.100 -P 3306 -u root -p
 ```
 
-参数说明：
-
-- `-h`：MySQL 地址。在 Kubernetes 中测试时，可以填写 MySQL Service 的外部地址或端口转发后的 `127.0.0.1`。
-- `-P`：MySQL 端口，默认是 `3306`。这里是大写字母 `P`。
-- `-u`：登录用户名，示例使用 `root`。
-- `-p`：提示输入密码。执行命令后输入密码并按 Enter，输入过程中终端不会显示字符，这是正常现象。
-
-连接成功后会看到类似提示：
+执行后输入 MySQL 密码。输入密码时终端不会显示字符，这是正常现象。登录成功后会看到：
 
 ```text
-Welcome to the MySQL monitor.
 mysql>
 ```
 
-后面的 SQL 都在 `mysql>` 提示符后执行。每条 SQL 必须以英文分号 `;` 结尾。退出 MySQL 可执行：
+以下 SQL 都在 `mysql>` 提示符后执行，并且必须以英文分号 `;` 结尾。
 
-```sql
-EXIT;
-```
+#### 第 2 步：进入商品数据库并创建测试商品
 
-如果出现 `mysql: command not found`，说明当前机器没有安装 MySQL 客户端；如果出现 `Access denied`，请检查用户名和密码；如果出现 `Can't connect`，请检查地址、端口、网络和 MySQL 服务状态。
-
-#### 第 2 步：创建两个业务数据库
-
-在 `mysql>` 提示符后逐条执行：
-
-```sql
-CREATE DATABASE IF NOT EXISTS provider_a_db
-  DEFAULT CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
-
-CREATE DATABASE IF NOT EXISTS provider_b_db
-  DEFAULT CHARACTER SET utf8mb4
-  COLLATE utf8mb4_unicode_ci;
-```
-
-查看数据库是否创建成功：
-
-```sql
-SHOW DATABASES;
-```
-
-结果中应包含：
-
-```text
-provider_a_db
-provider_b_db
-```
-
-#### 第 3 步：进入 Provider A 数据库
-
-MySQL 登录后默认不在任何业务数据库中。执行 `USE` 选择数据库：
+先进入 Provider A 使用的数据库：
 
 ```sql
 USE provider_a_db;
 ```
 
-成功后会显示：
-
-```text
-Database changed
-```
-
-查看当前选中的数据库：
+看到 `Database changed` 表示已经成功切换数据库。可以执行以下命令确认当前数据库和商品表：
 
 ```sql
 SELECT DATABASE();
-```
-
-结果应为 `provider_a_db`。
-
-#### 第 4 步：创建 Provider A 商品表
-
-如果 Provider A 已成功启动，应用会自动执行 `providera/src/main/resources/schema.sql` 创建表和初始数据。初学者也可以手动执行以下 SQL：
-
-```sql
-CREATE TABLE IF NOT EXISTS product (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  sku VARCHAR(32) NOT NULL UNIQUE,
-  name VARCHAR(128) NOT NULL,
-  price DECIMAL(10,2) NOT NULL,
-  status VARCHAR(16) DEFAULT '在售'
-);
-```
-
-确认表已经创建：
-
-```sql
 SHOW TABLES;
-DESCRIBE product;
 ```
 
-插入一条测试商品。`ON DUPLICATE KEY UPDATE` 可以避免重复执行时报 SKU 冲突：
+结果中应看到 `product` 表。然后新增一条演示商品：
 
 ```sql
 INSERT INTO product (sku, name, price, status)
-VALUES ('DEMO-P-001', 'Demo 测试商品', 99.00, '在售')
+VALUES ('DEMO-P-001', '云原生安全实战', 99.00, '热销')
 ON DUPLICATE KEY UPDATE
   name = VALUES(name),
   price = VALUES(price),
   status = VALUES(status);
 ```
 
-查询并确认数据：
+查询确认测试商品已经写入：
 
 ```sql
 SELECT id, sku, name, price, status
@@ -574,44 +507,40 @@ FROM product
 WHERE sku = 'DEMO-P-001';
 ```
 
-#### 第 5 步：切换到 Provider B 数据库
+等待最多 5 秒，Dashboard 的 Provider A 商品列表中应出现“云原生安全实战”。
 
-仍然在同一个 MySQL 会话中执行：
+继续修改商品价格，可以演示数据实时更新：
+
+```sql
+UPDATE product
+SET price = 199.00, status = '热销'
+WHERE sku = 'DEMO-P-001';
+
+SELECT id, sku, name, price, status
+FROM product
+WHERE sku = 'DEMO-P-001';
+```
+
+#### 第 3 步：切换到库存数据库并创建测试库存
+
+不需要退出 MySQL，直接使用 `USE` 切换到 Provider B 的数据库：
 
 ```sql
 USE provider_b_db;
+```
+
+确认当前数据库和库存表：
+
+```sql
 SELECT DATABASE();
-```
-
-结果应为 `provider_b_db`。`USE` 就是“切换数据库”，不需要退出后重新登录。
-
-#### 第 6 步：创建 Provider B 库存表
-
-如果 Provider B 已成功启动，应用会自动执行 `providerb/src/main/resources/schema.sql` 创建表和初始数据。也可以手动执行：
-
-```sql
-CREATE TABLE IF NOT EXISTS inventory (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  sku VARCHAR(32) NOT NULL UNIQUE,
-  name VARCHAR(128),
-  stock INT NOT NULL DEFAULT 0,
-  warehouse VARCHAR(32) DEFAULT 'wh-1',
-  low_stock_threshold INT DEFAULT 50
-);
-```
-
-确认表已经创建：
-
-```sql
 SHOW TABLES;
-DESCRIBE inventory;
 ```
 
-插入一条测试库存：
+结果中应看到 `inventory` 表。然后新增一条演示库存：
 
 ```sql
 INSERT INTO inventory (sku, name, stock, warehouse, low_stock_threshold)
-VALUES ('DEMO-SKU-001', 'Demo 测试库存', 600, 'wh-1', 200)
+VALUES ('DEMO-SKU-001', 'ArgoCD 实战', 600, 'wh-1', 200)
 ON DUPLICATE KEY UPDATE
   name = VALUES(name),
   stock = VALUES(stock),
@@ -619,148 +548,55 @@ ON DUPLICATE KEY UPDATE
   low_stock_threshold = VALUES(low_stock_threshold);
 ```
 
-查询并确认数据：
+查询确认测试库存已经写入，并查看当前库存状态：
 
 ```sql
-SELECT id, sku, name, stock, warehouse, low_stock_threshold,
+SELECT sku, name, stock, warehouse, low_stock_threshold,
        CASE WHEN stock < low_stock_threshold THEN '低库存' ELSE '正常' END AS status
 FROM inventory
 WHERE sku = 'DEMO-SKU-001';
 ```
 
-#### 第 7 步：确认 Provider 使用的是 MySQL
+此时库存为 `600`、预警阈值为 `200`，状态应为“正常”。等待最多 5 秒，Dashboard 的 Provider B 库存列表和库存总量应发生变化。
 
-确保 Provider A/B 的 Deployment 中已经设置：
-
-```text
-ENABLE_MYSQL=true
-MYSQL_HOST=<MySQL地址或Service名称>
-MYSQL_PORT=3306
-MYSQL_USER=root
-MYSQL_PASSWORD=<密码>
-MYSQL_DATABASE=provider_a_db 或 provider_b_db
-```
-
-重新部署或重启 Provider 后检查健康状态：
-
-```bash
-kubectl -n springcloud-demo rollout restart deployment/provider-a
-kubectl -n springcloud-demo rollout restart deployment/provider-b
-kubectl -n springcloud-demo rollout status deployment/provider-a
-kubectl -n springcloud-demo rollout status deployment/provider-b
-```
-
-查看 Provider 日志，确认没有 MySQL 连接错误：
-
-```bash
-kubectl -n springcloud-demo logs deployment/provider-a --tail=100
-kubectl -n springcloud-demo logs deployment/provider-b --tail=100
-```
-
-打开 Dashboard 后，Provider 返回数据中的 `dataSource` 应为 `mysql`。如果显示 `memory`，说明应用没有使用数据库，请重点检查 `ENABLE_MYSQL`、数据库地址、数据库名、账号、密码和网络连通性。
-
-### 演示：修改 MySQL 数据，验证 Dashboard 实时刷新
-
-完成上述步骤并确认 Provider 使用 MySQL 后，可以在同一个 MySQL 会话中修改数据。Dashboard 每 5 秒刷新一次。
-
-#### 测试 Provider A 商品变化
-
-先切换到商品数据库：
-
-```sql
-USE provider_a_db;
-SELECT DATABASE();
-```
-
-新增或更新演示商品：
-
-```sql
-INSERT INTO product (sku, name, price, status)
-VALUES ('DEMO-P-002', '云原生安全实战', 99.00, '热销')
-ON DUPLICATE KEY UPDATE
-  name = VALUES(name),
-  price = VALUES(price),
-  status = VALUES(status);
-```
-
-确认写入成功：
-
-```sql
-SELECT * FROM product WHERE sku = 'DEMO-P-002';
-```
-
-修改价格：
-
-```sql
-UPDATE product
-SET price = 199.00, status = '热销'
-WHERE sku = 'DEMO-P-002';
-
-SELECT * FROM product WHERE sku = 'DEMO-P-002';
-```
-
-#### 测试 Provider B 库存和低库存预警
-
-切换到库存数据库：
-
-```sql
-USE provider_b_db;
-SELECT DATABASE();
-```
-
-新增或更新演示库存：
-
-```sql
-INSERT INTO inventory (sku, name, stock, warehouse, low_stock_threshold)
-VALUES ('DEMO-SKU-002', 'ArgoCD 实战', 600, 'wh-1', 200)
-ON DUPLICATE KEY UPDATE
-  name = VALUES(name),
-  stock = VALUES(stock),
-  warehouse = VALUES(warehouse),
-  low_stock_threshold = VALUES(low_stock_threshold);
-```
-
-确认当前状态是“正常”：
-
-```sql
-SELECT sku, name, stock, low_stock_threshold,
-       CASE WHEN stock < low_stock_threshold THEN '低库存' ELSE '正常' END AS status
-FROM inventory
-WHERE sku = 'DEMO-SKU-002';
-```
-
-把库存修改到阈值以下：
+将库存改为低于预警阈值，用于演示低库存告警：
 
 ```sql
 UPDATE inventory
 SET stock = 10
-WHERE sku = 'DEMO-SKU-002';
+WHERE sku = 'DEMO-SKU-001';
 ```
 
-再次查询，状态应变为“低库存”：
+再次查询：
 
 ```sql
 SELECT sku, name, stock, low_stock_threshold,
        CASE WHEN stock < low_stock_threshold THEN '低库存' ELSE '正常' END AS status
 FROM inventory
-WHERE sku = 'DEMO-SKU-002';
+WHERE sku = 'DEMO-SKU-001';
 ```
 
-等待最多 5 秒后刷新 Dashboard，商品卡片、库存总量和低库存预警应反映最新数据。
+此时状态应变为“低库存”，Dashboard 的低库存预警数量也会随之变化。
 
-#### 测试完成后清理演示数据
+#### 第 4 步：清理演示数据并退出
 
-如果不希望保留测试记录，可以执行：
+演示结束后，如果不希望保留测试数据，可以执行：
 
 ```sql
 USE provider_a_db;
-DELETE FROM product WHERE sku IN ('DEMO-P-001', 'DEMO-P-002');
+DELETE FROM product WHERE sku = 'DEMO-P-001';
 
 USE provider_b_db;
-DELETE FROM inventory WHERE sku IN ('DEMO-SKU-001', 'DEMO-SKU-002');
+DELETE FROM inventory WHERE sku = 'DEMO-SKU-001';
 ```
 
-执行 `SELECT ROW_COUNT();` 可以查看上一条 `INSERT`、`UPDATE` 或 `DELETE` 影响了多少行。
+退出 MySQL：
+
+```sql
+EXIT;
+```
+
+如果执行 `USE provider_a_db` 或 `USE provider_b_db` 时提示数据库不存在，或者 `SHOW TABLES` 看不到对应表，请先确认 Provider 已使用 `ENABLE_MYSQL=true` 成功启动，并检查 Provider 日志中的 MySQL 连接错误。Dashboard 中 Provider 的 `dataSource` 应为 `mysql`；如果显示 `memory`，说明当前使用的是内存降级数据，数据库修改不会反映到页面。
 
 ## 示例效果
 
