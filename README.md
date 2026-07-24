@@ -101,53 +101,265 @@ docker pull kevinlee822/providera:latest
 docker pull kevinlee822/providerb:latest
 ```
 
-本项目当前没有 Docker Compose 文件。使用 Docker 演示时，需要先创建网络并启动 Nacos、Redis、MySQL、Kafka，再通过 `docker run` 启动各应用容器。下面是与本 Demo 一致的应用容器示例，基础设施容器需已加入 `demonet` 网络：
+### Kubernetes 部署
+
+本项目不使用 Docker Compose，目标运行环境为 Kubernetes。部署应用前，请确保集群中已存在可访问的 Nacos、Redis、MySQL 和 Kafka，并且以下 Service DNS 名称可用：
+
+- `nacos:8848`
+- `redis:6379`
+- `mysql:3306`
+- `kafka:9092`
+
+创建命名空间和 MySQL 密码 Secret：
 
 ```bash
-docker network create demonet 2>/dev/null || true
-
-# Provider A，可用不同容器名重复执行以模拟多副本
-docker run -d --name providera1 --network demonet \
-  -e NACOS_SERVER_ADDR=nacos:8848 \
-  -e NACOS_NAMESPACE=public \
-  -e ENABLE_MYSQL=true \
-  -e MYSQL_HOST=mysql \
-  -e MYSQL_PORT=3306 \
-  -e MYSQL_USER=root \
-  -e MYSQL_PASSWORD=<密码> \
-  -e MYSQL_DATABASE=provider_a_db \
-  kevinlee822/providera:latest
-
-# Provider B，可用不同容器名重复执行以模拟多副本
-docker run -d --name providerb1 --network demonet \
-  -e NACOS_SERVER_ADDR=nacos:8848 \
-  -e NACOS_NAMESPACE=public \
-  -e ENABLE_MYSQL=true \
-  -e MYSQL_HOST=mysql \
-  -e MYSQL_PORT=3306 \
-  -e MYSQL_USER=root \
-  -e MYSQL_PASSWORD=<密码> \
-  -e MYSQL_DATABASE=provider_b_db \
-  kevinlee822/providerb:latest
-
-# Consumer
-docker run -d --name consumer --network demonet -p 8080:8080 \
-  -e NACOS_SERVER_ADDR=nacos:8848 \
-  -e NACOS_NAMESPACE=public \
-  -e ENABLE_REDIS=true \
-  -e REDIS_HOST=redis \
-  -e REDIS_PORT=6379 \
-  -e ENABLE_KAFKA=true \
-  -e KAFKA_SERVER=kafka:9092 \
-  kevinlee822/consumer:latest
+kubectl create namespace springcloud-demo
+kubectl -n springcloud-demo create secret generic middleware-secret \
+  --from-literal=mysql-password='<MySQL密码>'
 ```
 
-如果 Nacos 已开启认证，再为三个应用容器增加 `NACOS_USERNAME` 和 `NACOS_PASSWORD`；未开启认证时不要传入无效凭据。
+将以下内容保存为 `springcloud-demo.yaml`：
 
-停止 Demo 容器：
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: provider-a
+  namespace: springcloud-demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: provider-a
+  template:
+    metadata:
+      labels:
+        app: provider-a
+    spec:
+      containers:
+        - name: provider-a
+          image: kevinlee822/providera:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8081
+          env:
+            - name: NACOS_SERVER_ADDR
+              value: nacos:8848
+            - name: NACOS_NAMESPACE
+              value: public
+            - name: ENABLE_MYSQL
+              value: "true"
+            - name: MYSQL_HOST
+              value: mysql
+            - name: MYSQL_PORT
+              value: "3306"
+            - name: MYSQL_USER
+              value: root
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: middleware-secret
+                  key: mysql-password
+            - name: MYSQL_DATABASE
+              value: provider_a_db
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 40
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: provider-a
+  namespace: springcloud-demo
+spec:
+  selector:
+    app: provider-a
+  ports:
+    - name: http
+      port: 8081
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: provider-b
+  namespace: springcloud-demo
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: provider-b
+  template:
+    metadata:
+      labels:
+        app: provider-b
+    spec:
+      containers:
+        - name: provider-b
+          image: kevinlee822/providerb:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8082
+          env:
+            - name: NACOS_SERVER_ADDR
+              value: nacos:8848
+            - name: NACOS_NAMESPACE
+              value: public
+            - name: ENABLE_MYSQL
+              value: "true"
+            - name: MYSQL_HOST
+              value: mysql
+            - name: MYSQL_PORT
+              value: "3306"
+            - name: MYSQL_USER
+              value: root
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: middleware-secret
+                  key: mysql-password
+            - name: MYSQL_DATABASE
+              value: provider_b_db
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 40
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: provider-b
+  namespace: springcloud-demo
+spec:
+  selector:
+    app: provider-b
+  ports:
+    - name: http
+      port: 8082
+      targetPort: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: consumer
+  namespace: springcloud-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: consumer
+  template:
+    metadata:
+      labels:
+        app: consumer
+    spec:
+      containers:
+        - name: consumer
+          image: kevinlee822/consumer:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: NACOS_SERVER_ADDR
+              value: nacos:8848
+            - name: NACOS_NAMESPACE
+              value: public
+            - name: ENABLE_REDIS
+              value: "true"
+            - name: REDIS_HOST
+              value: redis
+            - name: REDIS_PORT
+              value: "6379"
+            - name: ENABLE_KAFKA
+              value: "true"
+            - name: KAFKA_SERVER
+              value: kafka:9092
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: consumer
+  namespace: springcloud-demo
+spec:
+  type: NodePort
+  selector:
+    app: consumer
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      nodePort: 30080
+```
+
+部署并检查状态：
 
 ```bash
-docker stop consumer providera1 providerb1 nacos redis mysql kafka
+kubectl apply -f springcloud-demo.yaml
+kubectl -n springcloud-demo get pods,svc
+kubectl -n springcloud-demo rollout status deployment/provider-a
+kubectl -n springcloud-demo rollout status deployment/provider-b
+kubectl -n springcloud-demo rollout status deployment/consumer
+```
+
+通过任意 Kubernetes 节点的 `30080` 端口访问 Dashboard：
+
+```text
+http://<Node-IP>:30080/
+```
+
+也可以使用端口转发进行本地访问：
+
+```bash
+kubectl -n springcloud-demo port-forward service/consumer 8080:8080
+```
+
+然后访问 `http://localhost:8080/`。
+
+弹性伸缩 Provider 副本：
+
+```bash
+kubectl -n springcloud-demo scale deployment/provider-a --replicas=3
+kubectl -n springcloud-demo scale deployment/provider-b --replicas=3
+```
+
+如果 Nacos 开启了认证，请将用户名和密码保存为 Kubernetes Secret，并通过 `NACOS_USERNAME`、`NACOS_PASSWORD` 环境变量注入三个 Deployment；未开启认证时不要配置无效凭据。
+
+停止并删除应用资源：
+
+```bash
+kubectl delete -f springcloud-demo.yaml
 ```
 
 ## 必备基础设施
